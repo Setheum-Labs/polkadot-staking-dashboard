@@ -1,4 +1,4 @@
-# Polkadot Staking Dashboard
+# Setheum Staking Dashboard
 
 #### Staging (Latest Version):
 https://paritytech.github.io/polkadot-staking-dashboard
