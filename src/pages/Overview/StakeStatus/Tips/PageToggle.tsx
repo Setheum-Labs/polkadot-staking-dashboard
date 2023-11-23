@@ -1,15 +1,15 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import {
   faChevronCircleLeft,
   faChevronCircleRight,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useUi } from 'contexts/UI';
 import { useTranslation } from 'react-i18next';
-import { PageToggleProps } from './types';
+import { useUi } from 'contexts/UI';
 import { PageToggleWrapper } from './Wrappers';
+import type { PageToggleProps } from './types';
 
 export const PageToggle = ({
   start,
@@ -20,9 +20,9 @@ export const PageToggle = ({
   setPageHandler,
 }: PageToggleProps) => {
   const { t } = useTranslation();
-  const { networkSyncing } = useUi();
+  const { isNetworkSyncing } = useUi();
 
-  totalItems = networkSyncing ? 1 : totalItems;
+  totalItems = isNetworkSyncing ? 1 : totalItems;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (

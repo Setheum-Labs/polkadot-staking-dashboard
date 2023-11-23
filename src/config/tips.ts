@@ -1,58 +1,53 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import * as helpCenterJson from 'img/json/help-center-outline.json';
-import * as infoJson from 'img/json/info-outline.json';
-
-export const TIPS_CONFIG = [
+export const TipsConfig = [
   {
     id: 'connectExtensions',
     s: 1,
-    icon: infoJson,
   },
   {
     id: 'recommendedNominator',
     s: 2,
-    icon: infoJson,
+    page: 'nominate',
   },
   {
     id: 'recommendedJoinPool',
     s: 3,
-    icon: infoJson,
+    page: 'pools',
   },
   {
     id: 'howToStake',
     s: 4,
-    icon: helpCenterJson,
   },
   {
     id: 'managingNominations',
     s: 5,
-    icon: infoJson,
+    page: 'nominate',
   },
   {
     id: 'monitoringPool',
     s: 6,
-    icon: infoJson,
+    page: 'pools',
   },
   {
     id: 'joinAnotherPool',
     s: 6,
-    icon: infoJson,
+    page: 'pools',
   },
   {
     id: 'keepPoolNominating',
     s: 7,
-    icon: infoJson,
+    page: 'pools',
   },
   {
     id: 'reviewingPayouts',
     s: 8,
-    icon: infoJson,
+    page: 'payouts',
   },
   {
     id: 'understandingValidatorPerformance',
     s: 8,
-    icon: infoJson,
+    page: 'validators',
   },
 ];

@@ -1,28 +1,8 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { motion } from 'framer-motion';
 import styled from 'styled-components';
-
-import {
-  backgroundSecondary,
-  borderPrimary,
-  cardBorder,
-  cardShadow,
-  networkColor,
-  shadowColor,
-  shadowColorSecondary,
-  textInvert,
-  textPrimary,
-  textSecondary,
-  tooltipBackground,
-} from 'theme';
-
-export const Wrapper = styled.div`
-  display: flex;
-  flex-flow: column nowrap;
-  justify-content: flex-start;
-`;
 
 export const ListWrapper = styled.div`
   display: flex;
@@ -54,7 +34,6 @@ export const StatBoxWrapper = styled(motion.div)`
 
   /* responsive screen sizing */
   h3 {
-    font-variation-settings: 'wght' 580;
     font-size: 1.2rem;
   }
   @media (min-width: 950px) {
@@ -65,11 +44,11 @@ export const StatBoxWrapper = styled(motion.div)`
   }
 
   .content {
-    background: ${backgroundSecondary};
-    border: ${cardBorder} ${borderPrimary};
-    box-shadow: ${cardShadow} ${shadowColorSecondary};
+    background: var(--background-primary);
+    box-shadow: var(--card-shadow-secondary);
+
     @media (max-width: 799px) {
-      box-shadow: ${cardShadow} ${shadowColor};
+      box-shadow: var(--card-shadow);
     }
     display: flex;
     border-radius: 0.95rem;
@@ -83,20 +62,12 @@ export const StatBoxWrapper = styled(motion.div)`
       padding: 0.9rem 0;
     }
 
-    h3,
     h4 {
-      margin: 0;
-    }
-
-    h4 {
+      font-family: InterSemiBold, sans-serif;
       flex: 1;
       display: flex;
       flex-flow: row wrap;
       align-items: center;
-
-      .help-icon {
-        margin-left: 0.6rem;
-      }
     }
 
     > .chart {
@@ -111,7 +82,7 @@ export const StatBoxWrapper = styled(motion.div)`
       }
 
       .tooltip {
-        background: ${tooltipBackground};
+        background: var(--background-invert);
         opacity: 0;
         position: absolute;
         top: -20px;
@@ -121,11 +92,12 @@ export const StatBoxWrapper = styled(motion.div)`
         padding: 0 0.5rem;
         width: max-content;
         max-width: 250px;
-        transition: opacity 0.1s;
+        transition: opacity var(--transition-duration);
 
         h3 {
+          color: var(--text-color-invert);
+          font-family: InterSemiBold, sans-serif;
           text-align: center;
-          color: ${textInvert};
           margin: 0;
           font-size: 0.9rem;
         }
@@ -148,18 +120,20 @@ export const StatBoxWrapper = styled(motion.div)`
       overflow: hidden;
 
       h3 {
+        font-family: InterBold, sans-serif;
         display: flex;
         flex-flow: row wrap;
-        justify-content: flex-start;
-        align-items: flex-start;
-        margin-bottom: 0.3rem;
+        margin-top: 0.1rem;
+        margin-bottom: 0.1rem;
 
         &.text {
           margin-top: 0.15rem;
+          display: flex;
+          align-items: center;
         }
-
         span.total {
-          color: ${textSecondary};
+          color: var(--text-color-secondary);
+          display: flex;
           font-size: 0.95rem;
           margin-left: 0.4rem;
           position: relative;
@@ -170,14 +144,16 @@ export const StatBoxWrapper = styled(motion.div)`
   }
 `;
 
-export const TextTitleWrapper = styled.div<{ primary?: boolean }>`
-  color: ${(props) => (props.primary === true ? networkColor : textPrimary)};
-  font-variation-settings: 'wght' 580;
+export const TextTitleWrapper = styled.div<{ $primary?: boolean }>`
+  color: ${(props) =>
+    props.$primary === true
+      ? 'var(--accent-color-primary)'
+      : 'var(--text-color-primary)'};
+  font-family: InterBold, sans-serif;
   display: flex;
   flex-flow: row wrap;
-  justify-content: flex-start;
-  align-items: flex-start;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.35rem;
+
   font-size: 1.2rem;
   @media (min-width: 950px) {
     max-width: 300px;
@@ -189,40 +165,35 @@ export const TextTitleWrapper = styled.div<{ primary?: boolean }>`
   }
 
   span {
-    color: ${textSecondary};
+    color: var(--text-color-primary);
+    font-family: InterSemiBold, sans-serif;
     font-size: 0.95rem;
     margin-left: 0.55rem;
     margin-top: 0.1rem;
-    opacity: 0.85;
   }
 `;
 
 export const TimeLeftWrapper = styled.div<{ primary?: boolean }>`
-  color: ${(props) => (props.primary === true ? networkColor : textPrimary)};
-  font-variation-settings: 'wght' 550;
+  color: ${(props) =>
+    props.primary === true
+      ? 'var(--accent-color-primary)'
+      : 'var(--text-color-primary)'};
+  font-family: InterBold, sans-serif;
   display: flex;
   flex-flow: row wrap;
-  justify-content: flex-start;
-  align-items: flex-start;
   font-size: 1.2rem;
   @media (min-width: 950px) {
     max-width: 300px;
     font-size: 1.25rem;
   }
-
-  &.text {
-    margin-top: 0.15rem;
-  }
+  margin-bottom: 0.15rem;
 
   span {
-    color: ${textSecondary};
-    font-variation-settings: 'wght' 500;
+    color: var(--text-color-primary);
+    font-family: InterSemiBold, sans-serif;
     font-size: 0.95rem;
     margin-left: 0.3rem;
     margin-top: 0.1rem;
     margin-right: 0.75rem;
-    opacity: 0.85;
   }
 `;
-
-export default Wrapper;

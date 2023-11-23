@@ -1,22 +1,13 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import * as refreshChangeJson from 'img/json/refresh-change-outline.json';
 import { useTranslation } from 'react-i18next';
-import Lottie from 'react-lottie';
-import { ItemInnerWrapper, ItemsWrapper, ItemWrapper } from './Wrappers';
+import { useDotLottieButton } from 'library/Hooks/useDotLottieButton';
+import { ItemInnerWrapper, ItemWrapper, ItemsWrapper } from './Wrappers';
 
 export const Syncing = () => {
   const { t } = useTranslation('tips');
-
-  const animateOptions = {
-    loop: true,
-    autoplay: true,
-    animationData: refreshChangeJson,
-    rendererSettings: {
-      preserveAspectRatio: 'xMidYMid slice',
-    },
-  };
+  const { icon } = useDotLottieButton('refresh', { autoLoop: true });
 
   return (
     <ItemsWrapper
@@ -30,19 +21,21 @@ export const Syncing = () => {
       }}
     >
       <ItemWrapper>
-        <ItemInnerWrapper inactive>
-          <section style={{ paddingRight: '0.5rem' }}>
-            <Lottie
-              options={animateOptions}
-              width="1.6rem"
-              height="1.6rem"
-              isStopped={false}
-              isPaused={false}
-            />
+        <ItemInnerWrapper>
+          <section
+            style={{
+              marginRight: '0.5rem',
+              width: '1.5rem',
+              height: '1.5rem',
+            }}
+          >
+            {icon}
           </section>
           <section>
             <div className="desc">
-              <h4>{t('module.oneMoment')}...</h4>
+              <button type="button" disabled>
+                <h4>{t('module.oneMoment')}...</h4>
+              </button>
             </div>
           </section>
         </ItemInnerWrapper>

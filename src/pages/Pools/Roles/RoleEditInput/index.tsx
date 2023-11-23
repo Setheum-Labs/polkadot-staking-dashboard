@@ -1,15 +1,18 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useConnect } from 'contexts/Connect';
+import { isValidAddress } from '@polkadot-cloud/utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { isValidAddress } from 'Utils';
+import { useNetwork } from 'contexts/Network';
+import { formatAccountSs58 } from 'contexts/Connect/Utils';
 import { Wrapper } from './Wrapper';
 
 export const RoleEditInput = ({ setRoleEdit, roleKey, roleEdit }: any) => {
-  const { formatAccountSs58 } = useConnect();
   const { t } = useTranslation('pages');
+  const {
+    networkData: { ss58 },
+  } = useNetwork();
 
   const processRoleEdit = (newAddress: string) => {
     let edit = {
@@ -18,7 +21,7 @@ export const RoleEditInput = ({ setRoleEdit, roleKey, roleEdit }: any) => {
       reformatted: false,
     };
     if (isValidAddress(newAddress)) {
-      const addressFormatted = formatAccountSs58(newAddress);
+      const addressFormatted = formatAccountSs58(newAddress, ss58);
       if (addressFormatted) {
         edit = {
           newAddress: addressFormatted,
@@ -54,7 +57,7 @@ export const RoleEditInput = ({ setRoleEdit, roleKey, roleEdit }: any) => {
       <div className="input">
         <section>
           <input
-            placeholder={t('pools.address') || ''}
+            placeholder={t('pools.address')}
             type="text"
             onChange={(e: React.FormEvent<HTMLInputElement>) => handleChange(e)}
             value={roleEdit?.newAddress ?? ''}
@@ -65,5 +68,3 @@ export const RoleEditInput = ({ setRoleEdit, roleKey, roleEdit }: any) => {
     </Wrapper>
   );
 };
-
-export default RoleEditInput;

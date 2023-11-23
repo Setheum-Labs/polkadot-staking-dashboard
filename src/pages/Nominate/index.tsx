@@ -1,5 +1,5 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { useSetup } from 'contexts/Setup';
 import { Active } from './Active';
@@ -8,8 +8,5 @@ import { Wrapper } from './Wrappers';
 
 export const Nominate = () => {
   const { onNominatorSetup } = useSetup();
-
   return <Wrapper>{onNominatorSetup ? <Setup /> : <Active />}</Wrapper>;
 };
-
-export default Nominate;

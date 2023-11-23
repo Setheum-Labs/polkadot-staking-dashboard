@@ -1,14 +1,16 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { faCheckCircle, faCircle } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { useTranslation } from 'react-i18next';
+import { Title } from 'library/Prompt/Title';
+import { FilterListButton, FilterListWrapper } from 'library/Prompt/Wrappers';
 import { useFilters } from 'contexts/Filters';
-import { Title } from 'library/Overlay/Title';
-import { FilterListButton, FilterListWrapper } from 'library/Overlay/Wrappers';
 import { useValidatorFilters } from '../Hooks/useValidatorFilters';
 
 export const OrderValidators = () => {
+  const { t } = useTranslation('library');
   const { getOrder, setOrder } = useFilters();
   const { ordersToLabels } = useValidatorFilters();
 
@@ -16,16 +18,14 @@ export const OrderValidators = () => {
 
   return (
     <FilterListWrapper>
-      <Title title="Order Validators" />
+      <Title title={t('orderValidators')} />
       <div className="body">
         {Object.entries(ordersToLabels).map(([o, l]: any, i: number) => (
           <FilterListButton
-            active={order === o ?? false}
+            $active={order === o ?? false}
             key={`validator_filter_${i}`}
             type="button"
-            onClick={() => {
-              setOrder('validators', o);
-            }}
+            onClick={() => setOrder('validators', o)}
           >
             <FontAwesomeIcon
               transform="grow-5"

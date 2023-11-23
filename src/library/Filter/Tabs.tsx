@@ -1,8 +1,8 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useFilters } from 'contexts/Filters';
 import { useState } from 'react';
+import { useFilters } from 'contexts/Filters';
 import { TabsWrapper, TabWrapper } from './Wrappers';
 
 export const Tabs = ({ config, activeIndex }: any) => {
@@ -15,7 +15,7 @@ export const Tabs = ({ config, activeIndex }: any) => {
       {config.map((c: any, i: number) => (
         <TabWrapper
           key={`pools_tab_filter_${i}`}
-          active={i === active}
+          $active={i === active}
           disabled={i === active}
           onClick={() => {
             if (c.includes?.length) {

@@ -1,150 +1,152 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
+import { ActionItem, ModalPadding, ModalWarnings } from '@polkadot-cloud/react';
 import {
-  faArrowAltCircleUp,
-  faSignOutAlt,
-} from '@fortawesome/free-solid-svg-icons';
-import { ButtonSubmit } from '@rossbulat/polkadot-dashboard-ui';
-import { useApi } from 'contexts/Api';
-import { useBalances } from 'contexts/Balances';
-import { useConnect } from 'contexts/Connect';
-import { useModal } from 'contexts/Modal';
-import { useStaking } from 'contexts/Staking';
-import { useTransferOptions } from 'contexts/TransferOptions';
-import { useTxFees } from 'contexts/TxFees';
-import { EstimatedTxFee } from 'library/EstimatedTxFee';
-import { Warning } from 'library/Form/Warning';
-import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
-import { Title } from 'library/Modal/Title';
-import { FooterWrapper, NotesWrapper, PaddingWrapper } from 'modals/Wrappers';
+  greaterThanZero,
+  planckToUnit,
+  unitToPlanck,
+} from '@polkadot-cloud/utils';
+import { getUnixTime } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { humanNumber, planckBnToUnit, unitToPlanckBn } from 'Utils';
-import { Separator } from '../../Wrappers';
+import { useApi } from 'contexts/Api';
+import { useBonded } from 'contexts/Bonded';
+import { useTransferOptions } from 'contexts/TransferOptions';
+import { Warning } from 'library/Form/Warning';
+import { useBatchCall } from 'library/Hooks/useBatchCall';
+import { useErasToTimeLeft } from 'library/Hooks/useErasToTimeLeft';
+import { useSignerWarnings } from 'library/Hooks/useSignerWarnings';
+import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
+import { timeleftAsString } from 'library/Hooks/useTimeLeft/utils';
+import { Close } from 'library/Modal/Close';
+import { SubmitTx } from 'library/SubmitTx';
+import { StaticNote } from 'modals/Utils/StaticNote';
+import { useTxMeta } from 'contexts/TxMeta';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { useNetwork } from 'contexts/Network';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
 export const Unstake = () => {
   const { t } = useTranslation('modals');
-  const { api, network, consts } = useApi();
-  const { units } = network;
-  const { setStatus: setModalStatus, setResize } = useModal();
-  const { activeAccount, accountHasSigner } = useConnect();
-  const { getControllerNotImported } = useStaking();
-  const { getBondedAccount, getAccountNominations } = useBalances();
+  const { newBatchCall } = useBatchCall();
+  const { notEnoughFunds } = useTxMeta();
+  const { activeAccount } = useActiveAccounts();
+  const { api, consts } = useApi();
+  const {
+    networkData: { units, unit },
+  } = useNetwork();
+  const { erasToSeconds } = useErasToTimeLeft();
+  const { getSignerWarnings } = useSignerWarnings();
   const { getTransferOptions } = useTransferOptions();
-  const { txFeesValid } = useTxFees();
+  const { setModalStatus, setModalResize } = useOverlay().modal;
+  const { getBondedAccount, getAccountNominations } = useBonded();
 
   const controller = getBondedAccount(activeAccount);
   const nominations = getAccountNominations(activeAccount);
-  const controllerNotImported = getControllerNotImported(controller);
   const { bondDuration } = consts;
   const allTransferOptions = getTransferOptions(activeAccount);
   const { active } = allTransferOptions.nominate;
 
-  // convert BN values to number
-  const freeToUnbond = planckBnToUnit(active, units);
+  const bondDurationFormatted = timeleftAsString(
+    t,
+    getUnixTime(new Date()) + 1,
+    erasToSeconds(bondDuration),
+    true
+  );
+
+  // convert BigNumber values to number
+  const freeToUnbond = planckToUnit(active, units);
 
   // local bond value
-  const [bond, setBond] = useState({
-    bond: freeToUnbond,
+  const [bond, setBond] = useState<{ bond: string }>({
+    bond: freeToUnbond.toString(),
   });
 
   // bond valid
   const [bondValid, setBondValid] = useState(false);
 
   // unbond all validation
-  const isValid = (() => {
-    return freeToUnbond > 0 && !controllerNotImported;
-  })();
+  const isValid = (() => greaterThanZero(freeToUnbond))();
 
   // update bond value on task change
   useEffect(() => {
-    const _bond = freeToUnbond;
-    setBond({ bond: _bond });
+    setBond({ bond: freeToUnbond.toString() });
     setBondValid(isValid);
-  }, [freeToUnbond, isValid]);
+  }, [freeToUnbond.toString(), isValid]);
 
   // modal resize on form update
-  useEffect(() => {
-    setResize();
-  }, [bond]);
+  useEffect(() => setModalResize(), [bond, notEnoughFunds]);
 
   // tx to submit
   const getTx = () => {
     const tx = null;
-    if (!bondValid || !api || !activeAccount) {
-      return tx;
-    }
-    // controller must be imported to unstake
-    if (controllerNotImported) {
+    if (!api || !activeAccount) {
       return tx;
     }
     // remove decimal errors
-    const bondToSubmit = unitToPlanckBn(String(bond.bond), units);
+    const bondToSubmit = unitToPlanck(
+      String(!bondValid ? '0' : bond.bond),
+      units
+    );
+    const bondAsString = bondToSubmit.isNaN() ? '0' : bondToSubmit.toString();
 
-    if (bondToSubmit.isZero()) {
+    if (!bondAsString) {
       return api.tx.staking.chill();
     }
-    const txs = [api.tx.staking.chill(), api.tx.staking.unbond(bondToSubmit)];
-    return api.tx.utility.batch(txs);
+    const txs = [api.tx.staking.chill(), api.tx.staking.unbond(bondAsString)];
+    return newBatchCall(txs, controller);
   };
 
-  const { submitTx, submitting } = useSubmitExtrinsic({
+  const submitExtrinsic = useSubmitExtrinsic({
     tx: getTx(),
     from: controller,
     shouldSubmit: bondValid,
     callbackSubmit: () => {
-      setModalStatus(2);
+      setModalStatus('closing');
     },
     callbackInBlock: () => {},
   });
 
+  const warnings = getSignerWarnings(
+    activeAccount,
+    true,
+    submitExtrinsic.proxySupported
+  );
+
   return (
     <>
-      <Title title={t('unstake')} icon={faSignOutAlt} />
-      <PaddingWrapper>
-        {!accountHasSigner(controller) && <Warning text={t('readOnly')} />}
-        {controllerNotImported ? (
-          <Warning text={t('controllerImported')} />
-        ) : (
-          <></>
-        )}
-        {freeToUnbond > 0 ? (
-          <h2 className="title">
-            {t('unstakeUnbond', {
-              bond: humanNumber(freeToUnbond),
-              unit: network.unit,
-            })}
-          </h2>
+      <Close />
+      <ModalPadding>
+        <h2 className="title unbounded">{t('unstake')} </h2>
+        {warnings.length > 0 ? (
+          <ModalWarnings withMargin>
+            {warnings.map((text, i) => (
+              <Warning key={`warning${i}`} text={text} />
+            ))}
+          </ModalWarnings>
         ) : null}
-        <Separator />
+        {greaterThanZero(freeToUnbond) ? (
+          <ActionItem
+            text={t('unstakeUnbond', {
+              bond: freeToUnbond.toFormat(),
+              unit,
+            })}
+          />
+        ) : null}
         {nominations.length > 0 && (
-          <>
-            <h2 className="title">
-              {t('unstakeStopNominating', { count: nominations.length })}
-            </h2>
-            <Separator />
-          </>
+          <ActionItem
+            text={t('unstakeStopNominating', { count: nominations.length })}
+          />
         )}
-        <NotesWrapper noPadding>
-          <p>{t('onceUnbonding', { bondDuration })}</p>
-          {bondValid && <EstimatedTxFee />}
-        </NotesWrapper>
-        <FooterWrapper>
-          <div>
-            <ButtonSubmit
-              text={`${submitting ? t('submitting') : t('submit')}`}
-              iconLeft={faArrowAltCircleUp}
-              iconTransform="grow-2"
-              onClick={() => submitTx()}
-              disabled={
-                submitting ||
-                !(bondValid && accountHasSigner(controller) && txFeesValid)
-              }
-            />
-          </div>
-        </FooterWrapper>
-      </PaddingWrapper>
+        <StaticNote
+          value={bondDurationFormatted}
+          tKey="onceUnbonding"
+          valueKey="bondDurationFormatted"
+          deps={[bondDuration]}
+        />
+      </ModalPadding>
+      <SubmitTx fromController valid={bondValid} {...submitExtrinsic} />
     </>
   );
 };

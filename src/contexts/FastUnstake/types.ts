@@ -1,23 +1,23 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
-import { AnyApi, MaybeAccount } from 'types';
+import type BigNumber from 'bignumber.js';
+import type { AnyApi, MaybeAddress } from 'types';
 
 export interface LocalMeta {
   isExposed: boolean;
-  checked: Array<number>;
+  checked: number[];
 }
 export interface MetaInterface {
-  checked: Array<number>;
+  checked: number[];
 }
 
 export interface FastUnstakeContextInterface {
-  getLocalkey: (a: MaybeAccount) => string;
+  getLocalkey: (a: MaybeAddress) => string;
   checking: boolean;
   meta: MetaInterface;
   isExposed: boolean | null;
-  queueDeposit: BN | null;
+  queueDeposit: BigNumber | null;
   head: AnyApi;
   counterForQueue: number | null;
 }

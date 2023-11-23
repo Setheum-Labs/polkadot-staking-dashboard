@@ -1,19 +1,10 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
+import type { Network, NetworkName } from 'types';
 
-export interface NetworkMetricsContextInterface {
-  metrics: NetworkMetrics;
-}
-
-export interface NetworkMetrics {
-  activeEra: {
-    index: number;
-    start: number;
-  };
-  totalIssuance: BN;
-  auctionCounter: BN;
-  earliestStoredSession: BN;
-  fastUnstakeErasToCheckPerBlock: number;
+export interface NetworkContextInterface {
+  network: NetworkName;
+  networkData: Network;
+  switchNetwork: (network: NetworkName) => void;
 }

@@ -1,32 +1,32 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { BN } from 'bn.js';
-import { useConnect } from 'contexts/Connect';
+import BigNumber from 'bignumber.js';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSetup } from 'contexts/Setup';
-import { useTxFees } from 'contexts/TxFees';
+import { useTxMeta } from 'contexts/TxMeta';
 import { BondFeedback } from 'library/Form/Bond/BondFeedback';
 import { NominateStatusBar } from 'library/Form/NominateStatusBar';
 import { Footer } from 'library/SetupSteps/Footer';
 import { Header } from 'library/SetupSteps/Header';
 import { MotionContainer } from 'library/SetupSteps/MotionContainer';
-import { SetupStepProps } from 'library/SetupSteps/types';
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import type { SetupStepProps } from 'library/SetupSteps/types';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
-export const Bond = (props: SetupStepProps) => {
-  const { section } = props;
-  const { activeAccount } = useConnect();
-  const { txFees } = useTxFees();
-  const { getSetupProgress, setActiveAccountSetup } = useSetup();
-  const setup = getSetupProgress('stake', activeAccount);
+export const Bond = ({ section }: SetupStepProps) => {
   const { t } = useTranslation('pages');
+  const { activeAccount } = useActiveAccounts();
+  const { txFees } = useTxMeta();
+  const { getSetupProgress, setActiveAccountSetup } = useSetup();
+  const setup = getSetupProgress('nominator', activeAccount);
+  const { progress } = setup;
 
   // either free to bond or existing setup value
-  const initialBondValue = setup.bond === '0' ? '0' : setup.bond;
+  const initialBondValue = progress.bond === '0' ? '0' : progress.bond;
 
   // store local bond amount for form control
-  const [bond, setBond] = useState({
+  const [bond, setBond] = useState<{ bond: string }>({
     bond: initialBondValue,
   });
 
@@ -35,7 +35,7 @@ export const Bond = (props: SetupStepProps) => {
 
   // handler for updating bond
   const handleSetupUpdate = (value: any) => {
-    setActiveAccountSetup('stake', value);
+    setActiveAccountSetup('nominator', value);
   };
 
   // update bond on account change
@@ -49,8 +49,8 @@ export const Bond = (props: SetupStepProps) => {
   useEffect(() => {
     // only update if Bond is currently active
     if (setup.section === section) {
-      setActiveAccountSetup('stake', {
-        ...setup,
+      setActiveAccountSetup('nominator', {
+        ...progress,
         bond: initialBondValue,
       });
     }
@@ -60,22 +60,22 @@ export const Bond = (props: SetupStepProps) => {
     <>
       <Header
         thisSection={section}
-        complete={setup.bond !== '0' && setup.bond !== ''}
-        title={t('nominate.bond') || ''}
+        complete={progress.bond !== '0' && progress.bond !== ''}
+        title={t('nominate.bond')}
         helpKey="Bonding"
-        setupType="stake"
+        bondFor="nominator"
       />
       <MotionContainer thisSection={section} activeSection={setup.section}>
         <BondFeedback
-          syncing={txFees.eq(new BN(0))}
+          syncing={txFees.isZero()}
           bondFor="nominator"
           inSetup
-          listenIsValid={setBondValid}
+          listenIsValid={(valid) => setBondValid(valid)}
           defaultBond={initialBondValue}
           setters={[
             {
               set: handleSetupUpdate,
-              current: setup,
+              current: progress,
             },
             {
               set: setBond,
@@ -85,11 +85,9 @@ export const Bond = (props: SetupStepProps) => {
           txFees={txFees}
           maxWidth
         />
-        <NominateStatusBar value={bond.bond} />
-        <Footer complete={bondValid} setupType="stake" />
+        <NominateStatusBar value={new BigNumber(bond.bond)} />
+        <Footer complete={bondValid} bondFor="nominator" />
       </MotionContainer>
     </>
   );
 };
-
-export default Bond;

@@ -1,27 +1,33 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
-import { MaybeAccount } from 'types';
+import type BigNumber from 'bignumber.js';
+import type { MaybeAddress } from 'types';
 
 export interface TransferOptionsContextInterface {
-  getTransferOptions: (a: MaybeAccount) => TransferOptions;
+  getTransferOptions: (a: MaybeAddress) => TransferOptions;
+  setFeeReserveBalance: (r: BigNumber) => void;
+  feeReserve: BigNumber;
 }
 
 export interface TransferOptions {
-  freeBalance: BN;
+  freeBalance: BigNumber;
+  transferrableBalance: BigNumber;
+  balanceTxFees: BigNumber;
+  edReserved: BigNumber;
   nominate: {
-    active: BN;
-    totalUnlocking: BN;
-    totalUnlocked: BN;
-    totalPossibleBond: BN;
-    totalUnlockChuncks: number;
+    active: BigNumber;
+    totalUnlocking: BigNumber;
+    totalUnlocked: BigNumber;
+    totalPossibleBond: BigNumber;
+    totalAdditionalBond: BigNumber;
+    totalUnlockChunks: number;
   };
   pool: {
-    active: BN;
-    totalUnlocking: BN;
-    totalUnlocked: BN;
-    totalPossibleBond: BN;
-    totalUnlockChuncks: number;
+    active: BigNumber;
+    totalUnlocking: BigNumber;
+    totalUnlocked: BigNumber;
+    totalPossibleBond: BigNumber;
+    totalUnlockChunks: number;
   };
 }

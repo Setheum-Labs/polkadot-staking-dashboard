@@ -1,23 +1,16 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { SetupType } from 'contexts/Setup/types';
+import type { BondFor } from 'types';
 
 export interface NominationsProps {
-  batchKey: string;
-  setupType: SetupType;
+  bondFor: BondFor;
   section: number;
 }
 
 export interface FooterProps {
   complete: boolean;
-  setupType: SetupType;
-}
-
-export interface GenerateNominationsInnerProps {
-  setters: Array<any>;
-  nominations: string[];
-  batchKey: string;
+  bondFor: BondFor;
 }
 
 export interface HeaderProps {
@@ -25,10 +18,8 @@ export interface HeaderProps {
   helpKey?: string;
   complete?: boolean | null;
   thisSection: number;
-  setupType: SetupType;
+  bondFor: BondFor;
 }
-
-export type Nominations = string[];
 
 export interface SetupStepProps {
   section: number;

@@ -1,42 +1,40 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
-import {
-  PoolCreateProgress,
+import type {
+  NominatorProgress,
+  PoolProgress,
   SetupContextInterface,
-  StakeSetupProgress,
 } from './types';
 
-export const defaultStakeSetup: StakeSetupProgress = {
-  controller: null,
-  payee: null,
+export const defaultNominatorProgress: NominatorProgress = {
+  payee: {
+    destination: null,
+    account: null,
+  },
   nominations: [],
   bond: '',
-  section: 1,
 };
 
-export const defaultPoolSetup: PoolCreateProgress = {
+export const defaultPoolProgress: PoolProgress = {
   metadata: '',
   bond: '',
   nominations: [],
   roles: null,
-  section: 1,
 };
 
 export const defaultSetupContext: SetupContextInterface = {
-  // eslint-disable-next-line
-  getSetupProgress: (a, b) => {},
-  // eslint-disable-next-line
-  getStakeSetupProgressPercent: (a) => 0,
-  // eslint-disable-next-line
-  getPoolSetupProgressPercent: (a) => 0,
-  // eslint-disable-next-line
+  getSetupProgress: (a, b) => ({
+    section: 1,
+    progress: defaultNominatorProgress,
+  }),
+  removeSetupProgress: (a, b) => {},
+  getNominatorSetupPercent: (a) => 0,
+  getPoolSetupPercent: (a) => 0,
   setActiveAccountSetup: (t, p) => {},
-  // eslint-disable-next-line
   setActiveAccountSetupSection: (t, s) => {},
-  // eslint-disable-next-line
   setOnNominatorSetup: (v) => {},
-  // eslint-disable-next-line
   setOnPoolSetup: (v) => {},
   onNominatorSetup: false,
   onPoolSetup: false,

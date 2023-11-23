@@ -1,14 +1,11 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { useSetup } from 'contexts/Setup';
 import { Create } from './Create';
 import { Home } from './Home';
 
-export const Stake = () => {
+export const Pools = () => {
   const { onPoolSetup } = useSetup();
-
   return <>{onPoolSetup ? <Create /> : <Home />}</>;
 };
-
-export default Stake;

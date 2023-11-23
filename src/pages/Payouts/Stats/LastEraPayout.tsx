@@ -1,28 +1,26 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useApi } from 'contexts/Api';
+import { planckToUnit } from '@polkadot-cloud/utils';
+import { useTranslation } from 'react-i18next';
 import { useStaking } from 'contexts/Staking';
 import { Number } from 'library/StatBoxList/Number';
-import { useTranslation } from 'react-i18next';
-import { planckBnToUnit } from 'Utils';
+import { useNetwork } from 'contexts/Network';
 
-export const LastEraPayoutStatBox = () => {
-  const { network } = useApi();
-  const { staking } = useStaking();
-  const { unit, units } = network;
-  const { lastReward } = staking;
+export const LastEraPayoutStat = () => {
   const { t } = useTranslation('pages');
+  const { unit, units } = useNetwork().networkData;
+  const { staking } = useStaking();
+  const { lastReward } = staking;
 
-  const lastRewardBase = planckBnToUnit(lastReward, units).toFixed(0);
+  const lastRewardUnit = planckToUnit(lastReward, units).toNumber();
 
   const params = {
     label: t('payouts.lastEraPayout'),
-    value: lastRewardBase,
+    value: lastRewardUnit,
+    decimals: 3,
     unit,
     helpKey: 'Last Era Payout',
   };
   return <Number {...params} />;
 };
-
-export default LastEraPayoutStatBox;

@@ -1,50 +1,42 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { faBullhorn as faBack } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import BN from 'bn.js';
+import { planckToUnit, rmCommas } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useApi } from 'contexts/Api';
 import { useActivePools } from 'contexts/Pools/ActivePools';
-import { useUi } from 'contexts/UI';
-import { motion } from 'framer-motion';
-import { Announcement as AnnouncementLoader } from 'library/Loaders/Announcement';
-import { useTranslation } from 'react-i18next';
-import {
-  humanNumber,
-  planckBnToUnit,
-  rmCommas,
-  toFixedIfNecessary,
-} from 'Utils';
+import { Announcement as AnnouncementLoader } from 'library/Loader/Announcement';
+import { useNetwork } from 'contexts/Network';
 import { Item } from './Wrappers';
 
 export const Announcements = () => {
-  const { poolsSyncing } = useUi();
-  const { network, consts } = useApi();
+  const { t } = useTranslation('pages');
+  const { consts } = useApi();
+  const {
+    networkData: { units, unit },
+  } = useNetwork();
   const { selectedActivePool } = useActivePools();
-  const { units, unit } = network;
   const { rewardAccountBalance } = selectedActivePool || {};
   const { totalRewardsClaimed } = selectedActivePool?.rewardPool || {};
   const { existentialDeposit } = consts;
-  const { t } = useTranslation('pages');
 
   // calculate the latest reward account balance
-  const rewardPoolBalance = BN.max(
-    new BN(0),
-    new BN(rewardAccountBalance).sub(existentialDeposit)
+  const rewardPoolBalance = BigNumber.max(
+    0,
+    new BigNumber(rewardAccountBalance).minus(existentialDeposit)
   );
-  const rewardBalance = toFixedIfNecessary(
-    planckBnToUnit(rewardPoolBalance, units),
-    3
-  );
+  const rewardBalance = planckToUnit(rewardPoolBalance, units);
 
   // calculate total rewards claimed
-  const rewardsClaimed = toFixedIfNecessary(
-    planckBnToUnit(
-      totalRewardsClaimed ? new BN(rmCommas(totalRewardsClaimed)) : new BN(0),
-      network.units
-    ),
-    3
+  const rewardsClaimed = planckToUnit(
+    totalRewardsClaimed
+      ? new BigNumber(rmCommas(totalRewardsClaimed))
+      : new BigNumber(0),
+    units
   );
 
   const container = {
@@ -70,19 +62,19 @@ export const Announcements = () => {
 
   announcements.push({
     class: 'neutral',
-    title: `${humanNumber(rewardsClaimed)} ${unit} ${t('pools.beenClaimed')}`,
+    title: `${rewardsClaimed.decimalPlaces(3).toFormat()} ${unit} ${t(
+      'pools.beenClaimed'
+    )}`,
     subtitle: `${t('pools.beenClaimedBy', { unit })}`,
   });
 
-  if (rewardBalance > 0) {
-    announcements.push({
-      class: 'neutral',
-      title: `${humanNumber(rewardBalance)} ${unit} ${t(
-        'pools.outstandingReward'
-      )}`,
-      subtitle: `${t('pools.availableToClaim', { unit })}`,
-    });
-  }
+  announcements.push({
+    class: 'neutral',
+    title: `${rewardBalance.decimalPlaces(3).toFormat()} ${unit} ${t(
+      'pools.outstandingReward'
+    )}`,
+    subtitle: `${t('pools.availableToClaim', { unit })}`,
+  });
 
   return (
     <motion.div
@@ -91,10 +83,10 @@ export const Announcements = () => {
       animate="show"
       style={{ width: '100%' }}
     >
-      {poolsSyncing ? (
-        <AnnouncementLoader />
-      ) : (
-        announcements.map((item, index) => (
+      {announcements.map((item, index) =>
+        item === null ? (
+          <AnnouncementLoader key={`announcement_${index}`} />
+        ) : (
           <Item key={`announcement_${index}`} variants={listItem}>
             <h4 className={item.class}>
               <FontAwesomeIcon
@@ -105,7 +97,7 @@ export const Announcements = () => {
             </h4>
             <p>{item.subtitle}</p>
           </Item>
-        ))
+        )
       )}
     </motion.div>
   );

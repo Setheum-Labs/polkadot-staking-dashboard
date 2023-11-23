@@ -1,16 +1,6 @@
 {
   "help": {
     "definitions": {
-      "activeBondThreshold": [
-        "Active Bond Threshold",
-        [
-          "The amount of {NETWORK_UNIT} needed to be actively nominating in an era. ",
-          "This value applies to nominators and for pools. In the pool's case, it is important to join a pool with a total bond amount of at least this value.",
-          "Being above this metric simply guarantees that you will be present in the active nominator set for the era. This amount still does not guarantee rewards, as your active nominations may still be over-subscribed.",
-          "Only the top {MAX_NOMINATOR_REWARDED_PER_VALIDATOR} nominators are rewarded per validator in {NETWORK_NAME}. Ensuring your active bond is above this threshold will increase your chances of rewards.",
-          "You can keep track of these metrics from the dashboard and amend your staking position if necessary, whether increasing your bonded {NETWORK_UNIT}, changing your nominations, or joining another pool."
-        ]
-      ],
       "activeNominators": [
         "Active Nominators",
         [
@@ -21,6 +11,16 @@
       "activePools": [
         "Active Pools",
         ["The current amount of active nomination pools on {NETWORK_NAME}."]
+      ],
+      "activeStakeThreshold": [
+        "Active Stake Threshold",
+        [
+          "The amount of {NETWORK_UNIT} needed to be actively nominating in an era.",
+          "This value applies to nominators and for pools. In the pool's case, it is important to join a pool with a total bond amount of at least this value.",
+          "Being above this metric simply guarantees that you will be present in the active nominator set for the era. This amount still does not guarantee rewards, as your active nominations may still be over-subscribed.",
+          "Only the top {MAX_NOMINATOR_REWARDED_PER_VALIDATOR} nominators are rewarded per validator in {NETWORK_NAME}. Ensuring your active bond is above this threshold will increase your chances of rewards.",
+          "You can keep track of these metrics from the dashboard and amend your staking position if necessary, whether increasing your bonded {NETWORK_UNIT}, changing your nominations, or joining another pool."
+        ]
       ],
       "activeValidator": [
         "Active Validator",
@@ -62,7 +62,7 @@
         [
           "Bonding funds is the process of 'locking' (or staking) {NETWORK_UNIT}. Bonded {NETWORK_UNIT} will then be automatically allocated to one or more of your nominated validators.",
           "As a nominator, you allocate nominations yourself. In a pool, the pool owner or pool nominator will allocate nominations on your behalf, and your bonded funds will back those nominations.",
-          "The minimum active bond statistic is the minimum {NETWORK_UNIT} being bonded by a nominator for the current era.This value is also the minimum amount required to receive rewards."
+          "The minimum to earn rewards statistic is the minimum {NETWORK_UNIT} being bonded by a nominator for the current era. This value is also the minimum amount required to receive rewards."
         ]
       ],
       "commission": [
@@ -75,18 +75,10 @@
           "A validator can update their commission rates as and when they please, and such changes will have an impact on your profitability. Be sure to monitor your nominations on this dashboard to keep updated on their commission rates."
         ]
       ],
-      "controllerAccountEligibility": [
-        "Controller Account Eligibility",
-        [
-          "For an account to become a controller, it must have a balance of at least the existential deposit. On {NETWORK_NAME} the existential deposit amount is {EXISTENTIAL_DEPOSIT} {NETWORK_UNIT}.",
-          "If an account does not have at least this amount, you will see the 'Not Enough {NETWORK_UNIT}' message overlaying it.",
-          "Topping up an account with at least {EXISTENTIAL_DEPOSIT} {NETWORK_UNIT} will make it eligible and selectable as a controller."
-        ]
-      ],
       "epoch": [
         "Epoch",
         [
-          "An epoch is another name for a session in {NETWORK_NAME}. A different set of validators are selected to validate blocks at the beginning of every epoch.",
+          "An epoch is another name for a session in {NETWORK_NAME}. Each era is divided into 6 epochs during which validators are assigned as block producers to specific time frames or slots.",
           "1 epoch is currently 4 hours in Polkadot."
         ]
       ],
@@ -135,6 +127,38 @@
           "The payout amounts received depend on how much {NETWORK_UNIT} the nominators, and validators themselves, had bonded for that era."
         ]
       ],
+      "ledgerAppNotOnLatestRuntimeVersion": [
+        "Ledger App Not on Latest Runtime Version",
+        [
+          "This message occurs when your Ledger app is not configured to the latest runtime metadata. You may still attempt to submit your transaction, but it may fail.",
+          "To prevent this warning, update your Ledger device to the latest version.",
+          "There is usually a delay between runtime upgrades deploying and Ledger app updates. When an app update is available, you will be able to update your app in Ledger Live."
+        ]
+      ],
+      "ledgerHardwareWallets": [
+        "Ledger Hardware Wallets",
+        [
+          "Compatible Ledger devices are fully supported on staking dashboard. Use your Ledger to manage your staking activity on {NETWORK_NAME}.",
+          "Using a hardware wallet ensures a secure experience, whereby your keys stay on the hardware device at all times. This is also known as cold storage, as there is no active internet connection to your wallet.",
+          "In order to import and sign transactions with your Ledger device, your device must have the {NETWORK_NAME} Ledger app installed. The {NETWORK_NAME} app can be installed via Ledger's very own Ledger Live application.",
+          "Both USB and Bluetooth connections are supported in staking dashboard. So if your Ledger is bluetooth enabled, and your device allows bluetooth connections, you will be able to import accounts and sign transactions wirelessly through your Ledger device.",
+          "Find more information about Ledger at their official website, ledger.com."
+        ]
+      ],
+      "ledgerRejectedTransaction": [
+        "Ledger Rejected Transaction",
+        [
+          "The transaction was rejected on the Ledger device and will not be submitted.",
+          "Submit a transaction by approving it on the Ledger device."
+        ]
+      ],
+      "ledgerRequestTimeout": [
+        "Ledger Request Timeout",
+        [
+          "Timeout errors can occur when the Ledger device is busy, or when an operation fails to complete in time.",
+          "Try performing the operation again, and if the error persists, try restarting the Ledger device."
+        ]
+      ],
       "lockedBalance": [
         "Locked Balance",
         [
@@ -155,13 +179,6 @@
         [
           "The minimum amount of {NETWORK_UNIT} needed to bond in order to join a pool.",
           "This amount is different from the bond needed to create a pool."
-        ]
-      ],
-      "networkStats": [
-        "Network Stats",
-        [
-          "Real time network statistics that may affect your staking positions.",
-          "Keep up to date on the state of the network from your overview."
         ]
       ],
       "nominating": [
@@ -193,7 +210,7 @@
         [
           "Nominations are the validators a staker chooses to nominate. You can nominate up to {MAX_NOMINATIONS} validators on {NETWORK_NAME}.",
           "For nomination pools, the pool owner and pool nominator are in charge of nominating validators on behalf of all the pool members.",
-          "Once nominations have been submitted, bonded funds are automatically distributed to nominees that are active in the curernt era.",
+          "Once nominations have been submitted, bonded funds are automatically distributed to nominees that are active in the current era.",
           "As long as at least one of your nominations is actively validating in a session, your funds will be backing that validator."
         ]
       ],
@@ -202,6 +219,13 @@
         [
           "The amount of {NETWORK_UNIT} backing the validator from its nominators.",
           "This value is added to the validator's self stake to form the total stake of the validator. Note that this value changes every era as the bonded funds of nominators are re-distributed to the active validators of that session."
+        ]
+      ],
+      "openAppOnLedger": [
+        "Open App On Ledger",
+        [
+          "This message occurs when the {NETWORK_NAME} Ledger app is not currently open on the connected device.",
+          "Open the {NETWORK_NAME} app on the Ledger device and try again."
         ]
       ],
       "overSubscribed": [
@@ -218,12 +242,51 @@
           "One payout request triggers the reward payout for every nominator."
         ]
       ],
+      "payoutDestination": [
+        "Payout Destination",
+        [
+          "Your payout destination determines to which account your payouts are sent to.",
+          "Payouts can be automatically bonded on top of your current bond, or they can be sent to your stash, controller, or an external account of your choosing."
+        ]
+      ],
       "payoutHistory": [
         "Payout History",
         [
           "Historical records of payouts made for being an active nominator.",
           "Requesting payouts is a manual process, so you may receive payouts for multiple eras in quick succession or in a sporadic fashion. Your payout graphs may therefore have multiple payouts occur on the same day, or have days where there were no payouts.",
           "This does not mean that you were not nominating or generating rewards in that period - only that the payout for that period was not yet made."
+        ]
+      ],
+      "polkadotVault": [
+        "Polkadot Vault",
+        [
+          "Polkadot Vault (formerly Parity Signer) is a cold storage solution that allows you to use a phone in airplane mode as an air-gapped wallet.",
+          "The Vault app is not technically a wallet, as it does not allow to transfer funds.",
+          "It is more of a key-chain tool that will enable you the create, manage, and restore accounts."
+        ]
+      ],
+      "poolCommissionChangeRate": [
+        "Pool Commission Change Rate",
+        [
+          "The commission change rate is set by the pool Root, and dictates by how much and how often commission can be increased.",
+          "The maximum increase of the change rate dictates how much the commission rate can be increaesd in a single update. The minimum delay dictates how many blocks must pass before the commission rate can be increased again.",
+          "Once an initial change rate is set, only more restrictive values can be set thereafter. More restrictive values comprise of a smaller max increase and larger minimum delay."
+        ]
+      ],
+      "poolCommissionRate": [
+        "Pool Commission Rate",
+        [
+          "The commission rate of the pool. This value is set by the pool Root, and is the percentage of rewards the pool will take from its members.",
+          "A payee account must also be provided to receive the commission.",
+          "The commission rate is taken from the pool's rewards before they are distributed to its members."
+        ]
+      ],
+      "poolMaxCommission": [
+        "Pool Max Commission",
+        [
+          "The maximum commission rate a pool owner can set for the pool.",
+          "This value is set by the pool Root, and is the maximum percentage of rewards the pool will take from its members.",
+          "Once an initial maximum commission is set, only more restrictive values can be set thereafter."
         ]
       ],
       "poolMembership": [
@@ -247,10 +310,24 @@
         "Pool Roles",
         [
           "A pool consists of 4 roles, each of which having different responsibilities in managing the running of the pool.",
-          "Root: Can change the nominator, state-toggler, or itself. Further, it can perform any of the actions the nominator or state-toggler can.",
+          "Root: Can change the nominator, bouncer, or itself. Further, it can perform any of the actions the nominator or bouncer can.",
           "Depositor: Creates the pool and is the initial member. The depositor can only leave the pool once all other members have left. Once they leave by withdrawing, the pool is fully removed from the system.",
           "Nominator: Can select the validators the pool nominates.",
-          "State-Toggler: Can change the pool's state and kick (permissionlessly unbond/withdraw) members if the pool is blocked."
+          "Bouncer: Can change the pool's state and kick (permissionlessly unbond/withdraw) members if the pool is blocked."
+        ]
+      ],
+      "proxyAccounts": [
+        "Proxy Accounts",
+        [
+          "Proxy accounts are accounts that act on behalf of another account.",
+          "In proxy account terms, the proxy account is called the delegate account, and the proxied account it is acting on behalf of is called the delegator account.",
+          "Staking dashboard allows delegates to sign transactions on behalf of a delegator. If a delegate exists in the dashboard without its delegator, the delegator is imported as a read only account automatically."
+        ]
+      ],
+      "readOnlyAccounts": [
+        "Read Only Accounts",
+        [
+          "Read Only accounts are accounts that can be imported, but are not able to sign transactions. This means that you can view the account's balance and staking information, but you cannot perform any staking actions with it."
         ]
       ],
       "reserveBalance": [
@@ -260,11 +337,18 @@
           "Staking dashboard ensures that this amount of {NETWORK_UNIT} is never touched."
         ]
       ],
-      "rewardDestination": [
-        "Reward Destination",
+      "reserveBalanceForExistentialDeposit": [
+        "Reserve Balance for Existential Deposit",
         [
-          "Your reward destination is where your rewards are sent to.",
-          "Rewards can be automatically bonded on top of your current bond, or they can be sent to your stash, controller, or an external account of your choosing."
+          "If your account already has locked balance that covers your account's existential deposit, such as balance locked for nominating, then staking dashboard will not lock any additional free balance.",
+          "In this scenario, \"None\" is displayed under the \"Reserve For Existential Deposit\" section in your Reserve Balance settings."
+        ]
+      ],
+      "rewardsByCountryAndNetwork": [
+        "Rewards By Country And Network",
+        [
+          "Shows the estimated percentage of rewards that are generated from different countries and IP networks.",
+          "Polkawatch decentralization analytics are computed by aggregating rewards by the IP Geolocation of the Validator. The sample period is the last 60 days."
         ]
       ],
       "selfStake": [
@@ -272,16 +356,6 @@
         [
           "The amount of {NETWORK_UNIT} the validator has bonded themselves.",
           "This value is added to the amount of {NETWORK_UNIT} bonded by nominators to form the total stake of the validator."
-        ]
-      ],
-      "stashAndControllerAccounts": [
-        "Stash and Controller Accounts",
-        [
-          "The Stash and Controller are simply {NETWORK_NAME} accounts that manage your staking activity.",
-          "Your Stash account is the account used to hold your staked funds, whereas the Controller account is used to carry out Staking actions on the Stash account's behalf.",
-          "When you switch accounts in this app, you are actually switching your Stash account. Your Controller account is then automatically fetched for you.",
-          "This app assumes you have both Stash and Controller accounts imported. If you do not, you will not be able to use all app functions.",
-          "You can assign a different Controller account on the Stake page."
         ]
       ],
       "supplyStaked": [
@@ -305,10 +379,17 @@
           "As a nominator, you choose which validators you wish to back, and receive rewards for doing so."
         ]
       ],
+      "wrongTransaction": [
+        "Wrong Transaction",
+        [
+          "This error occurs when a Ledger device signed or is in the process of signing a different transaction than the currently active one on the dashboard.",
+          "Ensure there are no outstanding transactions on the Ledger device and try again."
+        ]
+      ],
       "yourBalance": [
         "Your Balance",
         [
-          "Your balance represents the total {NETWORK_UNIT} you have available in addition to your total staked amount, that includes the amount you have bonded in a Pool.",
+          "Your balance represents the total {NETWORK_UNIT} you have available in addition to your total staked amount, that includes the amount you have bonded in a pool.",
           "Unlike your staked balance, your bonded pool balance is held and locked in the pool itself."
         ]
       ]
@@ -316,7 +397,7 @@
     "externals": {
       "bondMore": "Bond More Tokens to Your Existing Stake",
       "changeAccount": "Changing your Controller Account",
-      "changeDestination": "Changing Your Reward Destination",
+      "changeDestination": "Changing Your Payout Destination",
       "changeNominations": "Changing Your Nominations",
       "chooseValidators": "How do I Know Which Validators to Choose?",
       "claimRewards": "Claiming Nomination Pool Rewards",
@@ -328,7 +409,6 @@
       "unbondingTokens": "Unbonding Your Tokens"
     },
     "modal": {
-      "allResources": "All Resources",
       "articles": "Articles",
       "close": "Close",
       "definitions": "Definitions",

@@ -1,5 +1,5 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import {
   CategoryScale,
@@ -11,12 +11,12 @@ import {
   Title,
   Tooltip,
 } from 'chart.js';
-import { useApi } from 'contexts/Api';
-import { useTheme } from 'contexts/Themes';
 import { Line } from 'react-chartjs-2';
 import { useTranslation } from 'react-i18next';
-import { defaultThemes, networkColors } from 'theme/default';
-import { EraPointsProps } from './types';
+import { useTheme } from 'contexts/Themes';
+import { graphColors } from 'styles/graphs';
+import { useNetwork } from 'contexts/Network';
+import type { EraPointsProps } from './types';
 
 ChartJS.register(
   CategoryScale,
@@ -29,9 +29,9 @@ ChartJS.register(
 );
 
 export const EraPoints = ({ items = [], height }: EraPointsProps) => {
-  const { mode } = useTheme();
-  const { name } = useApi().network;
   const { t } = useTranslation('library');
+  const { mode } = useTheme();
+  const { colors } = useNetwork().networkData;
 
   const options = {
     responsive: true,
@@ -42,7 +42,7 @@ export const EraPoints = ({ items = [], height }: EraPointsProps) => {
           display: false,
         },
         grid: {
-          color: defaultThemes.transparent[mode],
+          color: 'rgba(0,0,0,0)',
         },
         ticks: {
           display: true,
@@ -62,7 +62,7 @@ export const EraPoints = ({ items = [], height }: EraPointsProps) => {
           display: false,
         },
         grid: {
-          color: defaultThemes.graphs.grid[mode],
+          color: graphColors.grid[mode],
         },
         ticks: {
           display: true,
@@ -80,16 +80,14 @@ export const EraPoints = ({ items = [], height }: EraPointsProps) => {
       },
       tooltip: {
         displayColors: false,
-        backgroundColor: defaultThemes.graphs.tooltip[mode],
-        titleColor: defaultThemes.text.invert[mode],
-        bodyColor: defaultThemes.text.invert[mode],
+        backgroundColor: graphColors.tooltip[mode],
+        titleColor: graphColors.label[mode],
+        bodyColor: graphColors.label[mode],
         bodyFont: {
           weight: '600',
         },
         callbacks: {
-          title: () => {
-            return [];
-          },
+          title: () => [],
           label: (context: any) => `${context.parsed.y}`,
         },
         intersect: false,
@@ -106,8 +104,8 @@ export const EraPoints = ({ items = [], height }: EraPointsProps) => {
       {
         label: t('points'),
         data: items.map((item: any) => item.reward_point),
-        borderColor: networkColors[`${name}-${mode}`],
-        backgroundColor: networkColors[`${name}-${mode}`],
+        borderColor: colors.primary[mode],
+        backgroundColor: colors.primary[mode],
         pointStyle: undefined,
         pointRadius: 0,
         borderWidth: 2,
@@ -125,5 +123,3 @@ export const EraPoints = ({ items = [], height }: EraPointsProps) => {
     </div>
   );
 };
-
-export default EraPoints;

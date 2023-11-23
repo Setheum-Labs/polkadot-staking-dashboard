@@ -1,108 +1,79 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { BN } from 'bn.js';
-import React, { useEffect, useState } from 'react';
-import { AnyApi } from 'types';
-import { useApi } from '../Api';
-import * as defaults from './defaults';
-import { NetworkMetrics, NetworkMetricsContextInterface } from './types';
+import { extractUrlValue, varToUrlHash } from '@polkadot-cloud/utils';
+import React, { createContext, useContext, useState } from 'react';
+import { NetworkList } from 'config/networks';
+import { DefaultNetwork } from 'consts';
+import type { NetworkName } from 'types';
+import type { NetworkState } from 'contexts/Api/types';
+import type { NetworkContextInterface } from './types';
+import { defaultNetworkContext } from './defaults';
 
-export const NetworkMetricsContext =
-  React.createContext<NetworkMetricsContextInterface>(
-    defaults.defaultNetworkContext
-  );
-
-export const useNetworkMetrics = () => React.useContext(NetworkMetricsContext);
-
-export const NetworkMetricsProvider = ({
+export const NetworkProvider = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
-  const { isReady, api, status } = useApi();
+  // Get the initial network and prepare meta tags if necessary.
+  const getInitialNetwork = () => {
+    const urlNetworkRaw = extractUrlValue('n');
 
-  useEffect(() => {
-    if (status === 'connecting') {
-      setMetrics(defaults.metrics);
-    }
-  }, [status]);
+    const urlNetworkValid = !!Object.values(NetworkList).find(
+      (n) => n.name === urlNetworkRaw
+    );
 
-  // store network metrics in state
-  const [metrics, setMetrics] = useState<NetworkMetrics>(defaults.metrics);
+    // use network from url if valid.
+    if (urlNetworkValid) {
+      const urlNetwork = urlNetworkRaw as NetworkName;
 
-  // store network metrics unsubscribe
-  const [unsub, setUnsub] = useState<AnyApi>(undefined);
-
-  // manage unsubscribe
-  useEffect(() => {
-    subscribeToNetworkMetrics();
-    return () => {
-      if (unsub) {
-        unsub();
+      if (urlNetworkValid) {
+        return urlNetwork;
       }
-    };
-  }, [isReady]);
-
-  // active subscription
-  const subscribeToNetworkMetrics = async () => {
-    if (!api) return;
-
-    if (isReady) {
-      const _unsub = await api.queryMulti(
-        [
-          api.query.staking.activeEra,
-          api.query.balances.totalIssuance,
-          api.query.auctions.auctionCounter,
-          api.query.paraSessionInfo.earliestStoredSession,
-          api.query.fastUnstake.erasToCheckPerBlock,
-        ],
-        ([
-          activeEra,
-          _totalIssuance,
-          _auctionCounter,
-          _earliestStoredSession,
-          _erasToCheckPerBlock,
-        ]: AnyApi) => {
-          // determine activeEra: toString used as alternative to `toHuman`, that puts commas in numbers
-          let _activeEra = activeEra
-            .unwrapOrDefault({
-              index: 0,
-              start: 0,
-            })
-            .toString();
-
-          // convert JSON string to object
-          _activeEra = JSON.parse(_activeEra);
-
-          const _metrics = {
-            activeEra: _activeEra,
-            totalIssuance: _totalIssuance.toBn(),
-            auctionCounter: new BN(_auctionCounter.toString()),
-            earliestStoredSession: new BN(_earliestStoredSession.toString()),
-            fastUnstakeErasToCheckPerBlock: _erasToCheckPerBlock.toHuman(),
-          };
-          setMetrics(_metrics);
-        }
-      );
-      setUnsub(_unsub);
     }
+    // fallback to localStorage network if there.
+    const localNetwork: NetworkName = localStorage.getItem(
+      'network'
+    ) as NetworkName;
+    const localNetworkValid = !!Object.values(NetworkList).find(
+      (n) => n.name === localNetwork
+    );
+    return localNetworkValid ? localNetwork : DefaultNetwork;
   };
 
+  // handle network switching
+  const switchNetwork = (name: NetworkName) => {
+    setNetwork({
+      name,
+      meta: NetworkList[name],
+    });
+
+    // update url `n` if needed.
+    varToUrlHash('n', name, false);
+  };
+
+  // Store the initial active network.
+  const initialNetwork = getInitialNetwork();
+  const [network, setNetwork] = useState<NetworkState>({
+    name: initialNetwork,
+    meta: NetworkList[initialNetwork],
+  });
+
   return (
-    <NetworkMetricsContext.Provider
+    <NetworkContext.Provider
       value={{
-        metrics: {
-          activeEra: metrics.activeEra,
-          totalIssuance: metrics.totalIssuance,
-          auctionCounter: metrics.auctionCounter,
-          earliestStoredSession: metrics.earliestStoredSession,
-          fastUnstakeErasToCheckPerBlock:
-            metrics.fastUnstakeErasToCheckPerBlock,
-        },
+        network: network.name,
+        networkData: network.meta,
+        switchNetwork,
       }}
     >
       {children}
-    </NetworkMetricsContext.Provider>
+    </NetworkContext.Provider>
   );
 };
+
+export const NetworkContext = createContext<NetworkContextInterface>(
+  defaultNetworkContext
+);
+
+export const useNetwork = () => useContext(NetworkContext);

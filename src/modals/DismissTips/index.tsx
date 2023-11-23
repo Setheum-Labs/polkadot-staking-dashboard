@@ -1,22 +1,21 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { ButtonSubmit } from '@rossbulat/polkadot-dashboard-ui';
-import { useModal } from 'contexts/Modal';
+import { ButtonSubmit, ModalPadding } from '@polkadot-cloud/react';
+import { useTranslation } from 'react-i18next';
 import { usePlugins } from 'contexts/Plugins';
 import { Title } from 'library/Modal/Title';
-import { PaddingWrapper } from 'modals/Wrappers';
-import { useTranslation } from 'react-i18next';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
 
 export const DismissTips = () => {
-  const { togglePlugin } = usePlugins();
-  const { setStatus } = useModal();
   const { t } = useTranslation('tips');
+  const { togglePlugin } = usePlugins();
+  const { setModalStatus } = useOverlay().modal;
 
   return (
     <>
       <Title title={t('module.dismissTips')} />
-      <PaddingWrapper horizontalOnly>
+      <ModalPadding horizontalOnly>
         <div
           style={{
             padding: '0 0.5rem 1.25rem 0.5rem',
@@ -33,12 +32,12 @@ export const DismissTips = () => {
               text={t('module.disableTips')}
               onClick={() => {
                 togglePlugin('tips');
-                setStatus(2);
+                setModalStatus('closing');
               }}
             />
           </div>
         </div>
-      </PaddingWrapper>
+      </ModalPadding>
     </>
   );
 };

@@ -1,20 +1,20 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useApi } from 'contexts/Api';
+import { setStateWithRef } from '@polkadot-cloud/utils';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { setStateWithRef } from 'Utils';
-import {
+import { useNetwork } from 'contexts/Network';
+import type {
   TimeLeftAll,
-  TimeleftDuration,
   TimeLeftFormatted,
   TimeLeftRaw,
+  TimeleftDuration,
 } from './types';
 import { getDuration } from './utils';
 
 export const useTimeLeft = () => {
-  const { network } = useApi();
+  const { network } = useNetwork();
   const { t, i18n } = useTranslation();
 
   // check whether timeleft is within a minute of finishing.
@@ -80,6 +80,7 @@ export const useTimeLeft = () => {
 
   // refresh effects.
   useEffect(() => {
+    setTimeleft(getTimeleft());
     if (inLastHour()) {
       // refresh timeleft every second.
       if (!secIntervalRef.current) {
@@ -93,19 +94,17 @@ export const useTimeLeft = () => {
 
         setStateWithRef(interval, setSecInterval, secIntervalRef);
       }
-    } else {
-      setTimeleft(getTimeleft());
-      // refresh timeleft every minute.
-      if (!minIntervalRef.current) {
-        const interval = setInterval(() => {
-          if (inLastHour()) {
-            clearInterval(minIntervalRef.current);
-            setStateWithRef(undefined, setMinInterval, minIntervalRef);
-          }
-          setTimeleft(getTimeleft());
-        }, 60000);
-        setStateWithRef(interval, setMinInterval, minIntervalRef);
-      }
+    }
+    // refresh timeleft every minute.
+    else if (!minIntervalRef.current) {
+      const interval = setInterval(() => {
+        if (inLastHour()) {
+          clearInterval(minIntervalRef.current);
+          setStateWithRef(undefined, setMinInterval, minIntervalRef);
+        }
+        setTimeleft(getTimeleft());
+      }, 60000);
+      setStateWithRef(interval, setMinInterval, minIntervalRef);
     }
   }, [to, inLastHour(), lastMinuteCountdown(), network]);
 
@@ -115,15 +114,16 @@ export const useTimeLeft = () => {
   }, [i18n.resolvedLanguage]);
 
   // clear intervals on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       clearInterval(minInterval);
       clearInterval(secInterval);
-    };
-  }, []);
+    },
+    []
+  );
 
-  const setFromNow = (dateTo: Date) => {
-    setTimeleft(getTimeleft(getDuration(new Date())));
+  const setFromNow = (dateFrom: Date, dateTo: Date) => {
+    setTimeleft(getTimeleft(getDuration(dateFrom)));
     setStateWithRef(dateTo, setTo, toRef);
   };
 

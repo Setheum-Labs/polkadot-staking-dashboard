@@ -1,64 +1,58 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { BN } from 'bn.js';
-import { useApi } from 'contexts/Api';
-import { useBondedPools } from 'contexts/Pools/BondedPools';
+import { greaterThanZero, planckToUnit } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { useTranslation } from 'react-i18next';
 import { useStaking } from 'contexts/Staking';
 import { ValidatorStatusWrapper } from 'library/ListItem/Wrappers';
-import { useTranslation } from 'react-i18next';
-import { humanNumber, planckBnToUnit, rmCommas } from 'Utils';
-import { NominationStatusProps } from '../types';
+import { useNetwork } from 'contexts/Network';
+import type { NominationStatusProps } from '../types';
 
-export const NominationStatus = (props: NominationStatusProps) => {
+export const NominationStatus = ({
+  address,
+  nominator,
+  bondFor,
+  noMargin = false,
+  status,
+}: NominationStatusProps) => {
   const { t } = useTranslation('library');
-  const { getNominationsStatus, eraStakers, erasStakersSyncing } = useStaking();
-  const { getPoolNominationStatus } = useBondedPools();
   const {
-    network: { unit, units },
-  } = useApi();
-
-  const { ownStake, stakers } = eraStakers;
-  const { address, nominator, bondFor } = props;
-
-  let nominationStatus;
-  if (bondFor === 'pool') {
-    // get nomination status from pool metadata
-    nominationStatus = getPoolNominationStatus(nominator, address);
-  } else {
-    // get all active account's nominations.
-    const nominationStatuses = getNominationsStatus();
-    // find the nominator status within the returned nominations.
-    nominationStatus = nominationStatuses[address];
-  }
+    networkData: { unit, units },
+  } = useNetwork();
+  const {
+    eraStakers: { activeAccountOwnStake, stakers },
+    erasStakersSyncing,
+  } = useStaking();
 
   // determine staked amount
-  let stakedAmount = 0;
+  let stakedAmount = new BigNumber(0);
   if (bondFor === 'nominator') {
     // bonded amount within the validator.
     stakedAmount =
-      nominationStatus === 'active'
-        ? ownStake?.find((_own: any) => _own.address)?.value ?? 0
-        : 0;
+      status === 'active'
+        ? new BigNumber(
+            activeAccountOwnStake?.find((own) => own.address)?.value ?? 0
+          )
+        : new BigNumber(0);
   } else {
-    const s = stakers?.find((_n: any) => _n.address === address);
-    const exists = (s?.others ?? []).find((_o: any) => _o.who === nominator);
+    const staker = stakers?.find((s) => s.address === address);
+    const exists = (staker?.others || []).find(({ who }) => who === nominator);
     if (exists) {
-      stakedAmount = planckBnToUnit(new BN(rmCommas(exists.value)), units);
+      stakedAmount = planckToUnit(new BigNumber(exists.value), units);
     }
   }
 
   return (
-    <ValidatorStatusWrapper status={nominationStatus}>
+    <ValidatorStatusWrapper $status={status || 'waiting'} $noMargin={noMargin}>
       <h5>
-        {t(`${nominationStatus}`)}
-        {stakedAmount > 0 &&
-          ` / ${
-            erasStakersSyncing ? '...' : `${humanNumber(stakedAmount)} ${unit}`
-          }`}
+        {t(`${status || 'waiting'}`)}
+        {greaterThanZero(stakedAmount)
+          ? ` / ${
+              erasStakersSyncing ? '...' : `${stakedAmount.toFormat()} ${unit}`
+            }`
+          : null}
       </h5>
     </ValidatorStatusWrapper>
   );
 };
-
-export default NominationStatus;

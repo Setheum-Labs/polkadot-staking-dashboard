@@ -1,16 +1,18 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useApi } from 'contexts/Api';
-import { usePlugins } from 'contexts/Plugins';
 import { useEffect, useRef, useState } from 'react';
+import { usePlugins } from 'contexts/Plugins';
+import { useUnitPrice } from 'library/Hooks/useUnitPrice';
+import { useNetwork } from 'contexts/Network';
 
 export const usePrices = () => {
-  const { network, fetchDotPrice } = useApi();
+  const { network } = useNetwork();
   const { plugins } = usePlugins();
+  const fetchUnitPrice = useUnitPrice();
 
   const pricesLocalStorage = () => {
-    const pricesLocal = localStorage.getItem(`${network.name}_prices`);
+    const pricesLocal = localStorage.getItem(`${network}_prices`);
     return pricesLocal === null
       ? {
           lastPrice: 0,
@@ -23,7 +25,7 @@ export const usePrices = () => {
   const pricesRef = useRef(prices);
 
   const setPrices = (p: any) => {
-    localStorage.setItem(`${network.name}_prices`, JSON.stringify(p));
+    localStorage.setItem(`${network}_prices`, JSON.stringify(p));
     pricesRef.current = {
       ...pricesRef.current,
       ...p,
@@ -35,8 +37,7 @@ export const usePrices = () => {
   };
 
   const initiatePriceInterval = async () => {
-    const _prices = await fetchDotPrice();
-    setPrices(_prices);
+    setPrices(await fetchUnitPrice());
     if (priceHandle === null) {
       setPriceInterval();
     }
@@ -45,8 +46,7 @@ export const usePrices = () => {
   let priceHandle: any = null;
   const setPriceInterval = async () => {
     priceHandle = setInterval(async () => {
-      const _prices = await fetchDotPrice();
-      setPrices(_prices);
+      setPrices(await fetchUnitPrice());
     }, 1000 * 30);
   };
 
@@ -81,5 +81,3 @@ export const usePrices = () => {
 
   return pricesRef.current;
 };
-
-export default usePrices;

@@ -1,8 +1,8 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useApi } from 'contexts/Api';
 import React, { useEffect, useState } from 'react';
+import { useNetwork } from 'contexts/Network';
 import * as defaults from './defaults';
 
 export const CommunitySectionsContext: React.Context<any> = React.createContext(
@@ -17,10 +17,10 @@ export const CommunitySectionsProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const { network } = useApi();
+  const { network } = useNetwork();
 
   // store the active section of the community page
-  const [activeSection, _setActiveSection] = useState<number>(0);
+  const [activeSection, setActiveSectionState] = useState<number>(0);
 
   // store the active entity item of the community page
   const [activeItem, setActiveItem] = useState(defaults.item);
@@ -31,12 +31,12 @@ export const CommunitySectionsProvider = ({
 
   // go back to first section and reset item when network switches
   useEffect(() => {
-    _setActiveSection(0);
+    setActiveSectionState(0);
     setActiveItem(defaults.item);
   }, [network]);
 
   const setActiveSection = (t: any) => {
-    _setActiveSection(t);
+    setActiveSectionState(t);
   };
 
   return (

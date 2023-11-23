@@ -1,116 +1,128 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { faArrowAltCircleUp, faMinus } from '@fortawesome/free-solid-svg-icons';
-import { ButtonSubmit } from '@rossbulat/polkadot-dashboard-ui';
-import BN from 'bn.js';
-import { useApi } from 'contexts/Api';
-import { useConnect } from 'contexts/Connect';
-import { useModal } from 'contexts/Modal';
-import { useTxFees } from 'contexts/TxFees';
-import { EstimatedTxFee } from 'library/EstimatedTxFee';
-import { Warning } from 'library/Form/Warning';
-import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
-import { Title } from 'library/Modal/Title';
+import { ActionItem, ModalPadding, ModalWarnings } from '@polkadot-cloud/react';
 import {
-  FooterWrapper,
-  NotesWrapper,
-  PaddingWrapper,
-  Separator,
-} from 'modals/Wrappers';
+  greaterThanZero,
+  planckToUnit,
+  rmCommas,
+  unitToPlanck,
+} from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { getUnixTime } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { planckBnToUnit, rmCommas, unitToPlanckBn } from 'Utils';
+import { useApi } from 'contexts/Api';
+import { Warning } from 'library/Form/Warning';
+import { useErasToTimeLeft } from 'library/Hooks/useErasToTimeLeft';
+import { useSignerWarnings } from 'library/Hooks/useSignerWarnings';
+import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
+import { timeleftAsString } from 'library/Hooks/useTimeLeft/utils';
+import { Close } from 'library/Modal/Close';
+import { SubmitTx } from 'library/SubmitTx';
+import { StaticNote } from 'modals/Utils/StaticNote';
+import { useTxMeta } from 'contexts/TxMeta';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { useNetwork } from 'contexts/Network';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
 export const UnbondPoolMember = () => {
-  const { api, network, consts } = useApi();
-  const { setStatus: setModalStatus, setResize, config } = useModal();
-  const { activeAccount, accountHasSigner } = useConnect();
-  const { txFeesValid } = useTxFees();
-  const { units } = network;
+  const { t } = useTranslation('modals');
+  const { api, consts } = useApi();
+  const {
+    networkData: { units, unit },
+  } = useNetwork();
+  const { activeAccount } = useActiveAccounts();
+  const { notEnoughFunds } = useTxMeta();
+  const { erasToSeconds } = useErasToTimeLeft();
+  const { getSignerWarnings } = useSignerWarnings();
+  const {
+    setModalStatus,
+    setModalResize,
+    config: { options },
+  } = useOverlay().modal;
+
   const { bondDuration } = consts;
-  const { member, who } = config;
+  const { member, who } = options;
   const { points } = member;
-  const freeToUnbond = planckBnToUnit(new BN(rmCommas(points)), units);
+  const freeToUnbond = planckToUnit(new BigNumber(rmCommas(points)), units);
+
+  const bondDurationFormatted = timeleftAsString(
+    t,
+    getUnixTime(new Date()) + 1,
+    erasToSeconds(bondDuration),
+    true
+  );
 
   // local bond value
-  const [bond, setBond] = useState({
-    bond: freeToUnbond,
+  const [bond, setBond] = useState<{ bond: string }>({
+    bond: freeToUnbond.toString(),
   });
 
   // bond valid
   const [bondValid, setBondValid] = useState(false);
-  const { t } = useTranslation('modals');
 
   // unbond all validation
-  const isValid = (() => {
-    return freeToUnbond > 0;
-  })();
+  const isValid = (() => greaterThanZero(freeToUnbond))();
 
   // update bond value on task change
   useEffect(() => {
-    const _bond = freeToUnbond;
-    setBond({ bond: _bond });
+    setBond({ bond: freeToUnbond.toString() });
     setBondValid(isValid);
-  }, [freeToUnbond, isValid]);
+  }, [freeToUnbond.toString(), isValid]);
 
-  // modal resize on form update
-  useEffect(() => {
-    setResize();
-  }, [bond]);
+  useEffect(() => setModalResize(), [bond, notEnoughFunds]);
 
   // tx to submit
   const getTx = () => {
     let tx = null;
-    if (!bondValid || !api || !activeAccount) {
+    if (!api || !activeAccount) {
       return tx;
     }
     // remove decimal errors
-    const bondToSubmit = unitToPlanckBn(String(bond.bond), units);
-    tx = api.tx.nominationPools.unbond(who, bondToSubmit);
+    const bondToSubmit = unitToPlanck(!bondValid ? '0' : bond.bond, units);
+    const bondAsString = bondToSubmit.isNaN() ? '0' : bondToSubmit.toString();
+    tx = api.tx.nominationPools.unbond(who, bondAsString);
     return tx;
   };
 
-  const { submitTx, submitting } = useSubmitExtrinsic({
+  const submitExtrinsic = useSubmitExtrinsic({
     tx: getTx(),
     from: activeAccount,
     shouldSubmit: bondValid,
     callbackSubmit: () => {
-      setModalStatus(2);
+      setModalStatus('closing');
     },
     callbackInBlock: () => {},
   });
 
+  const warnings = getSignerWarnings(
+    activeAccount,
+    false,
+    submitExtrinsic.proxySupported
+  );
+
   return (
     <>
-      <Title title={t('unbondMemberFunds')} icon={faMinus} />
-      <PaddingWrapper>
-        {!accountHasSigner(activeAccount) && <Warning text={t('readOnly')} />}
-        <h2 className="title">
-          {t('unbond')} {freeToUnbond} {network.unit}
-        </h2>
-        <Separator />
-        <NotesWrapper>
-          <p>{t('onceUnbonding', { bondDuration })}</p>
-          {bondValid && <EstimatedTxFee />}
-        </NotesWrapper>
-        <FooterWrapper>
-          <div>
-            <ButtonSubmit
-              text={`${submitting ? t('submitting') : t('submit')}`}
-              iconLeft={faArrowAltCircleUp}
-              iconTransform="grow-2"
-              onClick={() => submitTx()}
-              disabled={
-                submitting ||
-                !bondValid ||
-                !accountHasSigner(activeAccount) ||
-                !txFeesValid
-              }
-            />
-          </div>
-        </FooterWrapper>
-      </PaddingWrapper>
+      <Close />
+      <ModalPadding>
+        <h2 className="title unbounded">{t('unbondMemberFunds')}</h2>
+        {warnings.length > 0 ? (
+          <ModalWarnings withMargin>
+            {warnings.map((text, i) => (
+              <Warning key={`warning${i}`} text={text} />
+            ))}
+          </ModalWarnings>
+        ) : null}
+        <ActionItem text={`${t('unbond')} ${freeToUnbond} ${unit}`} />
+        <StaticNote
+          value={bondDurationFormatted}
+          tKey="onceUnbonding"
+          valueKey="bondDurationFormatted"
+          deps={[bondDuration]}
+        />
+      </ModalPadding>
+      <SubmitTx valid={bondValid} {...submitExtrinsic} />
     </>
   );
 };

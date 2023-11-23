@@ -1,44 +1,41 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
+import BigNumber from 'bignumber.js';
+import { useTranslation } from 'react-i18next';
 import { useApi } from 'contexts/Api';
 import { useStaking } from 'contexts/Staking';
 import { Pie } from 'library/StatBoxList/Pie';
-import { useTranslation } from 'react-i18next';
-import { toFixedIfNecessary } from 'Utils';
 
-export const ActiveNominatorsStatBox = () => {
+export const ActiveNominatorsStat = () => {
+  const { t } = useTranslation('pages');
   const { consts } = useApi();
   const { maxElectingVoters } = consts;
-  const { eraStakers } = useStaking();
-  const { totalActiveNominators } = eraStakers;
-  const { t } = useTranslation('pages');
+  const { totalActiveNominators } = useStaking().eraStakers;
 
   // active nominators as percent
   let totalNominatorsAsPercent = 0;
-  if (maxElectingVoters > 0) {
+  if (maxElectingVoters.isGreaterThan(0)) {
     totalNominatorsAsPercent =
-      totalActiveNominators /
-      new BN(maxElectingVoters).div(new BN(100)).toNumber();
+      totalActiveNominators / maxElectingVoters.dividedBy(100).toNumber();
   }
 
   const params = {
     label: t('overview.activeNominators'),
     stat: {
       value: totalActiveNominators,
-      total: maxElectingVoters,
+      total: maxElectingVoters.toNumber(),
       unit: '',
     },
     graph: {
       value1: totalActiveNominators,
-      value2: maxElectingVoters - totalActiveNominators,
+      value2: maxElectingVoters.minus(totalActiveNominators).toNumber(),
     },
-    tooltip: `${toFixedIfNecessary(totalNominatorsAsPercent, 2)}%`,
+    tooltip: `${new BigNumber(totalNominatorsAsPercent)
+      .decimalPlaces(2)
+      .toFormat()}%`,
     helpKey: 'Active Nominators',
   };
 
   return <Pie {...params} />;
 };
-
-export default ActiveNominatorsStatBox;

@@ -1,31 +1,32 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { faArrowAltCircleUp } from '@fortawesome/free-regular-svg-icons';
-import { faExchangeAlt } from '@fortawesome/free-solid-svg-icons';
-import { ButtonSubmit } from '@rossbulat/polkadot-dashboard-ui';
-import { useApi } from 'contexts/Api';
-import { useConnect } from 'contexts/Connect';
-import { useModal } from 'contexts/Modal';
-import { useBondedPools } from 'contexts/Pools/BondedPools';
-import { useTxFees } from 'contexts/TxFees';
-import { EstimatedTxFee } from 'library/EstimatedTxFee';
-import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
-import { Title } from 'library/Modal/Title';
+import { ModalPadding } from '@polkadot-cloud/react';
 import { useTranslation } from 'react-i18next';
-import { FooterWrapper, NotesWrapper } from '../Wrappers';
+import { useApi } from 'contexts/Api';
+import { useBondedPools } from 'contexts/Pools/BondedPools';
+import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
+import { Close } from 'library/Modal/Close';
+import { SubmitTx } from 'library/SubmitTx';
+import { useTxMeta } from 'contexts/TxMeta';
+import { useEffect } from 'react';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 import { RoleChange } from './RoleChange';
-import Wrapper from './Wrapper';
+import { Wrapper } from './Wrapper';
 
 export const ChangePoolRoles = () => {
-  const { api } = useApi();
-  const { setStatus: setModalStatus } = useModal();
-  const { replacePoolRoles } = useBondedPools();
-  const { activeAccount, accountHasSigner } = useConnect();
-  const { config } = useModal();
-  const { txFeesValid } = useTxFees();
-  const { id: poolId, roleEdits } = config;
   const { t } = useTranslation('modals');
+  const { api } = useApi();
+  const { activeAccount } = useActiveAccounts();
+  const { notEnoughFunds } = useTxMeta();
+  const { replacePoolRoles } = useBondedPools();
+  const {
+    setModalStatus,
+    config: { options },
+    setModalResize,
+  } = useOverlay().modal;
+  const { id: poolId, roleEdits } = options;
 
   // tx to submit
   const getTx = () => {
@@ -36,26 +37,21 @@ export const ChangePoolRoles = () => {
     const nominator = roleEdits?.nominator?.newAddress
       ? { Set: roleEdits?.nominator?.newAddress }
       : 'Remove';
-    const stateToggler = roleEdits?.stateToggler?.newAddress
-      ? { Set: roleEdits?.stateToggler?.newAddress }
+    const bouncer = roleEdits?.bouncer?.newAddress
+      ? { Set: roleEdits?.bouncer?.newAddress }
       : 'Remove';
 
-    tx = api?.tx.nominationPools?.updateRoles(
-      poolId,
-      root,
-      nominator,
-      stateToggler
-    );
+    tx = api?.tx.nominationPools?.updateRoles(poolId, root, nominator, bouncer);
     return tx;
   };
 
   // handle extrinsic
-  const { submitTx, submitting } = useSubmitExtrinsic({
+  const submitExtrinsic = useSubmitExtrinsic({
     tx: getTx(),
     from: activeAccount,
     shouldSubmit: true,
     callbackSubmit: () => {
-      setModalStatus(2);
+      setModalStatus('closing');
     },
     callbackInBlock: () => {
       // manually update bondedPools with new pool roles
@@ -63,16 +59,14 @@ export const ChangePoolRoles = () => {
     },
   });
 
+  useEffect(() => setModalResize(), [notEnoughFunds]);
+
   return (
     <>
-      <Title title={t('changePoolRoles')} icon={faExchangeAlt} />
-      <Wrapper>
-        <div
-          style={{
-            padding: '0 1.25rem',
-            width: '100%',
-          }}
-        >
+      <Close />
+      <ModalPadding>
+        <h2 className="title unbounded">{t('changePoolRoles')}</h2>
+        <Wrapper>
           <RoleChange
             roleName={t('root')}
             oldAddress={roleEdits?.root?.oldAddress}
@@ -84,30 +78,13 @@ export const ChangePoolRoles = () => {
             newAddress={roleEdits?.nominator?.newAddress}
           />
           <RoleChange
-            roleName={t('stateToggler')}
-            oldAddress={roleEdits?.stateToggler?.oldAddress}
-            newAddress={roleEdits?.stateToggler?.newAddress}
+            roleName={t('bouncer')}
+            oldAddress={roleEdits?.bouncer?.oldAddress}
+            newAddress={roleEdits?.bouncer?.newAddress}
           />
-          <NotesWrapper>
-            <EstimatedTxFee />
-          </NotesWrapper>
-          <FooterWrapper>
-            <div>
-              <ButtonSubmit
-                text={`${submitting ? t('submitting') : t('submit')}`}
-                iconLeft={faArrowAltCircleUp}
-                iconTransform="grow-2"
-                onClick={() => submitTx()}
-                disabled={
-                  submitting || !accountHasSigner(activeAccount) || !txFeesValid
-                }
-              />
-            </div>
-          </FooterWrapper>
-        </div>
-      </Wrapper>
+        </Wrapper>
+      </ModalPadding>
+      <SubmitTx {...submitExtrinsic} valid />
     </>
   );
 };
-
-export default ChangePoolRoles;

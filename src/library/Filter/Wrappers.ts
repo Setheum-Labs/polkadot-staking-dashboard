@@ -1,13 +1,7 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import styled from 'styled-components';
-import {
-  backgroundDropdown,
-  borderPrimary,
-  networkColor,
-  textSecondary,
-} from 'theme';
 
 export const Wrapper = styled.div`
   padding: 0 0.5rem;
@@ -44,7 +38,8 @@ export const Wrapper = styled.div`
 `;
 
 export const ItemWrapper = styled.div`
-  border: 1px solid ${borderPrimary};
+  border: 1px solid var(--border-primary-color);
+  font-family: InterSemiBold, sans-serif;
   border-radius: 1.5rem;
   display: flex;
   position: relative;
@@ -57,7 +52,7 @@ export const ItemWrapper = styled.div`
     margin-right: 0;
   }
   .icon {
-    color: ${textSecondary};
+    color: var(--text-color-secondary);
     display: flex;
     flex-flow: column wrap;
     justify-content: center;
@@ -65,7 +60,7 @@ export const ItemWrapper = styled.div`
     margin-right: 0.55rem;
   }
   p {
-    color: ${textSecondary};
+    color: var(--text-color-secondary);
     font-size: 0.9rem;
     margin: 0;
     text-align: left;
@@ -79,8 +74,8 @@ export const LargeItemWrapper = styled.div`
   justify-content: center;
   padding: 0.5rem;
   > .inner {
-    border: 1.5px solid ${borderPrimary};
-    background: ${backgroundDropdown};
+    border: 1.5px solid var(--border-primary-color);
+    background: var(--background-list-item);
     border-radius: 1.25rem;
     display: flex;
     flex-flow: column nowrap;
@@ -97,17 +92,13 @@ export const LargeItemWrapper = styled.div`
       display: flex;
       flex-flow: row wrap;
       align-items: center;
-
-      h3 {
-        margin: 0;
-      }
     }
     svg {
-      color: ${networkColor};
+      color: var(--accent-color-primary);
       margin-right: 0.75rem;
     }
     p {
-      color: ${textSecondary};
+      color: var(--text-color-secondary);
       margin: 0;
       text-align: left;
       padding: 0.5rem 0 0 0;
@@ -131,9 +122,17 @@ export const TabsWrapper = styled.div`
   }
 `;
 
-export const TabWrapper = styled.button<{ active?: boolean }>`
-  border: 1px solid ${(props) => (props.active ? networkColor : borderPrimary)};
-  color: ${(props) => (props.active ? networkColor : textSecondary)};
+export const TabWrapper = styled.button<{ $active?: boolean }>`
+  font-family: InterSemiBold, sans-serif;
+  border: 1px solid
+    ${(props) =>
+      props.$active
+        ? 'var(--accent-color-primary)'
+        : 'var(--border-primary-color)'};
+  color: ${(props) =>
+    props.$active
+      ? 'var(--accent-color-primary)'
+      : 'var(--text-color-secondary)'};
   font-size: 0.9rem;
   padding: 0.5rem 1.25rem;
 `;

@@ -1,38 +1,45 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { stringToU8a } from '@polkadot/util';
-import BN from 'bn.js';
-import { NETWORKS } from 'config/networks';
-import { APIConstants, APIContextInterface } from 'contexts/Api/types';
+import BigNumber from 'bignumber.js';
+import type {
+  APIChainState,
+  APIConstants,
+  APIContextInterface,
+} from 'contexts/Api/types';
 
-export const consts: APIConstants = {
-  bondDuration: 0,
-  maxNominations: 0,
-  sessionsPerEra: 0,
-  maxNominatorRewardedPerValidator: 0,
-  historyDepth: new BN(0),
-  maxElectingVoters: 0,
-  expectedBlockTime: 0,
-  epochDuration: 0,
-  existentialDeposit: new BN(0),
+export const defaultConsts: APIConstants = {
+  bondDuration: new BigNumber(0),
+  maxNominations: new BigNumber(0),
+  sessionsPerEra: new BigNumber(0),
+  maxNominatorRewardedPerValidator: new BigNumber(0),
+  historyDepth: new BigNumber(0),
+  maxElectingVoters: new BigNumber(0),
+  expectedBlockTime: new BigNumber(0),
+  epochDuration: new BigNumber(0),
+  existentialDeposit: new BigNumber(0),
+  fastUnstakeDeposit: new BigNumber(0),
   poolsPalletId: stringToU8a('0'),
 };
 
+export const defaultChainState: APIChainState = {
+  chain: null,
+  version: {
+    specVersion: 0,
+  },
+  ss58Prefix: 0,
+};
+
 export const defaultApiContext: APIContextInterface = {
-  // eslint-disable-next-line
-  connect: async () => {
-    await new Promise((resolve) => resolve(null));
-  },
-  fetchDotPrice: () => {},
-  // eslint-disable-next-line
-  switchNetwork: async (_network, _isLightClient) => {
-    await new Promise((resolve) => resolve(null));
-  },
   api: null,
-  consts,
-  isLightClient: false,
+  consts: defaultConsts,
+  chainState: defaultChainState,
   isReady: false,
-  status: 'disconnected',
-  network: NETWORKS.polkadot,
+  apiStatus: 'disconnected',
+  isLightClient: false,
+  setIsLightClient: () => {},
+  rpcEndpoint: '',
+  setRpcEndpoint: (key) => {},
 };

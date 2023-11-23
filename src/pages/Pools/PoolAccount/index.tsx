@@ -1,26 +1,27 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { faCopy } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useAccount } from 'contexts/Account';
-import { useNotifications } from 'contexts/Notifications';
-import { NotificationText } from 'contexts/Notifications/types';
+import { ellipsisFn, remToUnit } from '@polkadot-cloud/utils';
 import { motion } from 'framer-motion';
-import { Identicon } from 'library/Identicon';
-import { getIdentityDisplay } from 'library/ValidatorList/Validator/Utils';
 import { useTranslation } from 'react-i18next';
-import { clipAddress, remToUnit } from 'Utils';
-import { PoolAccountProps } from '../types';
+import { useIdentities } from 'contexts/Identities';
+import { useNotifications } from 'contexts/Notifications';
+import type { NotificationText } from 'contexts/Notifications/types';
+import { Polkicon } from '@polkadot-cloud/react';
+import { getIdentityDisplay } from 'library/ValidatorList/ValidatorItem/Utils';
+import type { PoolAccountProps } from '../types';
 import { Wrapper } from './Wrapper';
 
-export const PoolAccount = (props: PoolAccountProps) => {
-  const { address, last, batchKey, batchIndex } = props;
-
-  const { addNotification } = useNotifications();
-  const { meta } = useAccount();
+export const PoolAccount = ({
+  address,
+  batchKey,
+  batchIndex,
+}: PoolAccountProps) => {
   const { t } = useTranslation('pages');
+  const { meta } = useIdentities();
+  const { addNotification } = useNotifications();
 
   const identities = meta[batchKey]?.identities ?? [];
   const supers = meta[batchKey]?.supers ?? [];
@@ -43,7 +44,7 @@ export const PoolAccount = (props: PoolAccountProps) => {
   }
 
   return (
-    <Wrapper last={last}>
+    <Wrapper>
       <motion.div
         className="account"
         initial={{ opacity: 0.5 }}
@@ -55,16 +56,16 @@ export const PoolAccount = (props: PoolAccountProps) => {
         ) : synced && display !== null ? (
           <>
             <div className="icon">
-              <Identicon value={address} size={remToUnit('1.6rem')} />
+              <Polkicon address={address} size={remToUnit('1.6rem')} />
             </div>
             <h4>{display}</h4>
           </>
         ) : (
           <>
             <div className="icon">
-              <Identicon value={address} size={remToUnit('1.6rem')} />
+              <Polkicon address={address} size={remToUnit('1.6rem')} />
             </div>
-            <h4>{clipAddress(address)}</h4>
+            <h4>{ellipsisFn(address)}</h4>
           </>
         )}
         <div>
@@ -83,7 +84,7 @@ export const PoolAccount = (props: PoolAccountProps) => {
                   }
                 }}
               >
-                <FontAwesomeIcon icon={faCopy as IconProp} transform="grow-1" />
+                <FontAwesomeIcon icon={faCopy} transform="shrink-2" />
               </button>
             )}
           </motion.div>
@@ -92,5 +93,3 @@ export const PoolAccount = (props: PoolAccountProps) => {
     </Wrapper>
   );
 };
-
-export default PoolAccount;

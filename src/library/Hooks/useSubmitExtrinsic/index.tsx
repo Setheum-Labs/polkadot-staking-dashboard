@@ -1,149 +1,299 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
-import { DappName } from 'consts';
-import { useApi } from 'contexts/Api';
-import { useConnect } from 'contexts/Connect';
-import { useExtensions } from 'contexts/Extensions';
-import { ExtensionInjected } from 'contexts/Extensions/types';
-import { useExtrinsics } from 'contexts/Extrinsics';
-import { useNotifications } from 'contexts/Notifications';
-import { useTxFees } from 'contexts/TxFees';
-import { useEffect, useState } from 'react';
+import BigNumber from 'bignumber.js';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AnyApi } from 'types';
-import { UseSubmitExtrinsic, UseSubmitExtrinsicProps } from './types';
+import { DappName, ManualSigners } from 'consts';
+import { useApi } from 'contexts/Api';
+import { useExtensions } from '@polkadot-cloud/react/hooks';
+import { useExtrinsics } from 'contexts/Extrinsics';
+import { useLedgerHardware } from 'contexts/Hardware/Ledger/LedgerHardware';
+import { useNotifications } from 'contexts/Notifications';
+import { useTxMeta } from 'contexts/TxMeta';
+import type { AnyApi, AnyJson } from 'types';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
+import { useImportedAccounts } from 'contexts/Connect/ImportedAccounts';
+import { useBuildPayload } from '../useBuildPayload';
+import { useProxySupported } from '../useProxySupported';
+import type { UseSubmitExtrinsic, UseSubmitExtrinsicProps } from './types';
 
 export const useSubmitExtrinsic = ({
   tx,
+  from,
   shouldSubmit,
   callbackSubmit,
   callbackInBlock,
-  from,
 }: UseSubmitExtrinsicProps): UseSubmitExtrinsic => {
-  const { api } = useApi();
-  const { setTxFees, setSender, txFees } = useTxFees();
-  const { addNotification } = useNotifications();
-  const { addPending, removePending } = useExtrinsics();
-  const { extensions } = useExtensions();
-  const { getAccount } = useConnect();
   const { t } = useTranslation('library');
+  const { api } = useApi();
+  const { buildPayload } = useBuildPayload();
+  const { activeProxy } = useActiveAccounts();
+  const { extensionsStatus } = useExtensions();
+  const { addNotification } = useNotifications();
+  const { isProxySupported } = useProxySupported();
+  const { handleResetLedgerTask } = useLedgerHardware();
+  const { addPending, removePending } = useExtrinsics();
+  const { getAccount, requiresManualSign } = useImportedAccounts();
+  const {
+    txFees,
+    setTxFees,
+    setSender,
+    getTxPayload,
+    getTxSignature,
+    setTxSignature,
+    resetTxPayloads,
+    incrementPayloadUid,
+  } = useTxMeta();
 
-  // if null account is provided, fallback to empty string
-  const submitAddress: string = from ?? '';
+  // Store given tx as a ref.
+  const txRef = useRef<AnyApi>(tx);
 
-  // whether the transaction is in progress
+  // Store given submit address as a ref.
+  const fromRef = useRef<string>(from || '');
+
+  // Store whether the transaction is in progress.
   const [submitting, setSubmitting] = useState(false);
 
-  // calculate fee upon setup changes and initial render
-  useEffect(() => {
-    setSender(from);
-    calculateEstimatedFee();
-  }, [tx]);
+  // Store the uid of the extrinsic.
+  const [uid] = useState<number>(incrementPayloadUid());
 
+  // Track for one-shot transaction reset after submission.
+  const didTxReset = useRef<boolean>(false);
+
+  // If proxy account is active, wrap tx in a proxy call and set the sender to the proxy account.
+  const wrapTxIfActiveProxy = () => {
+    // if already wrapped, update fromRef and return.
+    if (
+      txRef.current?.method.toHuman().section === 'proxy' &&
+      txRef.current?.method.toHuman().method === 'proxy'
+    ) {
+      if (activeProxy) {
+        fromRef.current = activeProxy;
+      }
+      return;
+    }
+
+    if (
+      api &&
+      activeProxy &&
+      txRef.current &&
+      isProxySupported(txRef.current, fromRef.current)
+    ) {
+      // update submit address to active proxy account.
+      fromRef.current = activeProxy;
+
+      // Do not wrap batch transactions. Proxy calls should already be wrapping each tx within the
+      // batch via `useBatchCall`.
+      if (
+        txRef.current?.method.toHuman().section === 'utility' &&
+        txRef.current?.method.toHuman().method === 'batch'
+      ) {
+        return;
+      }
+
+      // Not a batch transaction: wrap tx in proxy call.
+      txRef.current = api.tx.proxy.proxy(
+        {
+          id: from,
+        },
+        null,
+        txRef.current
+      );
+    }
+  };
+
+  // Calculate the estimated tx fee of the transaction.
   const calculateEstimatedFee = async () => {
-    if (tx === null) {
+    if (txRef.current === null) {
       return;
     }
     // get payment info
-    const { partialFee } = await tx.paymentInfo(submitAddress);
-    const partialFeeBn = new BN(partialFee.toString());
+    const { partialFee } = await txRef.current.paymentInfo(fromRef.current);
+    const partialFeeBn = new BigNumber(partialFee.toString());
 
-    // give tx fees to global useTxFees context
+    // give tx fees to global useTxMeta context
     if (partialFeeBn.toString() !== txFees.toString()) {
       setTxFees(partialFeeBn);
     }
   };
 
-  // submit extrinsic
-  const submitTx = async () => {
-    if (submitting || !shouldSubmit || !api) {
+  // Extrinsic submission handler.
+  const onSubmit = async () => {
+    const account = getAccount(fromRef.current);
+    if (
+      account === null ||
+      submitting ||
+      !shouldSubmit ||
+      !api ||
+      (requiresManualSign(fromRef.current) && !getTxSignature())
+    ) {
       return;
     }
-    const account = getAccount(submitAddress);
-    if (account === null) {
-      return;
-    }
 
-    const _accountNonce = await api.rpc.system.accountNextIndex(submitAddress);
-    const accountNonce = _accountNonce.toHuman();
+    const nonce = (
+      await api.rpc.system.accountNextIndex(fromRef.current)
+    ).toHuman();
 
-    const { signer, source } = account;
+    const { source } = account;
 
-    const extension = extensions.find(
-      (e: ExtensionInjected) => e.id === source
-    );
-    if (extension === undefined) {
-      throw new Error(t('walletNotFound') || '');
-    } else {
-      // summons extension popup if not already connected.
-      extension.enable(DappName);
-    }
-
-    // pre-submission state update
-    setSubmitting(true);
-
-    try {
-      const unsub = await tx.signAndSend(
-        from,
-        { signer },
-        ({ status, events = [] }: AnyApi) => {
-          // extrinsic is ready ( has been signed), add to pending
-          if (status.isReady) {
-            addPending(accountNonce);
-            addNotification({
-              title: t('pending'),
-              subtitle: t('transactionInitiated'),
-            });
-            callbackSubmit();
-          }
-
-          // extrinsic is in block, assume tx completed
-          if (status.isInBlock) {
-            setSubmitting(false);
-            removePending(accountNonce);
-            addNotification({
-              title: t('inBlock'),
-              subtitle: t('transactionInBlock'),
-            });
-            callbackInBlock();
-          }
-
-          // let user know outcome of transaction
-          if (status.isFinalized) {
-            events.forEach(({ event: { method } }: AnyApi) => {
-              if (method === 'ExtrinsicSuccess') {
-                addNotification({
-                  title: t('finalized'),
-                  subtitle: t('transactionSuccessful'),
-                });
-                unsub();
-              } else if (method === 'ExtrinsicFailed') {
-                addNotification({
-                  title: t('failed'),
-                  subtitle: t('errorWithTransaction'),
-                });
-                setSubmitting(false);
-                removePending(accountNonce);
-                unsub();
-              }
-            });
-          }
-        }
+    // if `activeAccount` is imported from an extension, ensure it is enabled.
+    if (!ManualSigners.includes(source)) {
+      const isInstalled = Object.entries(extensionsStatus).find(
+        ([id, status]) => id === source && status === 'connected'
       );
-    } catch (e) {
+
+      if (!isInstalled) throw new Error(`${t('walletNotFound')}`);
+
+      if (!window?.injectedWeb3?.[source])
+        throw new Error(`${t('walletNotFound')}`);
+
+      // summons extension popup if not already connected.
+      window.injectedWeb3[source].enable(DappName);
+    }
+
+    const onReady = () => {
+      addPending(nonce);
+      addNotification({
+        title: t('pending'),
+        subtitle: t('transactionInitiated'),
+      });
+      callbackSubmit();
+    };
+
+    const onInBlock = () => {
       setSubmitting(false);
-      removePending(accountNonce);
+      removePending(nonce);
+      addNotification({
+        title: t('inBlock'),
+        subtitle: t('transactionInBlock'),
+      });
+      callbackInBlock();
+    };
+
+    const onFinalizedEvent = (method: string) => {
+      if (method === 'ExtrinsicSuccess') {
+        addNotification({
+          title: t('finalized'),
+          subtitle: t('transactionSuccessful'),
+        });
+      } else if (method === 'ExtrinsicFailed') {
+        addNotification({
+          title: t('failed'),
+          subtitle: t('errorWithTransaction'),
+        });
+        setSubmitting(false);
+        removePending(nonce);
+      }
+    };
+
+    const resetTx = () => {
+      resetTxPayloads();
+      setTxSignature(null);
+      setSubmitting(false);
+    };
+
+    const resetManualTx = () => {
+      resetTx();
+      handleResetLedgerTask();
+    };
+
+    const onError = (type?: string) => {
+      resetTx();
+      if (type === 'ledger') handleResetLedgerTask();
+      removePending(nonce);
       addNotification({
         title: t('cancelled'),
         subtitle: t('transactionCancelled'),
       });
+    };
+
+    const handleStatus = (status: AnyApi) => {
+      if (status.isReady) onReady();
+      if (status.isInBlock) onInBlock();
+    };
+
+    const unsubEvents = ['ExtrinsicSuccess', 'ExtrinsicFailed'];
+
+    // pre-submission state update
+    setSubmitting(true);
+
+    const txPayload: AnyJson = getTxPayload();
+    const txSignature: AnyJson = getTxSignature();
+
+    // handle signed transaction.
+    if (getTxSignature()) {
+      try {
+        txRef.current.addSignature(fromRef.current, txSignature, txPayload);
+
+        const unsub = await txRef.current.send(
+          ({ status, events = [] }: AnyApi) => {
+            if (!didTxReset.current) {
+              didTxReset.current = true;
+              resetManualTx();
+            }
+
+            handleStatus(status);
+            if (status.isFinalized) {
+              events.forEach(({ event: { method } }: AnyApi) => {
+                onFinalizedEvent(method);
+                if (unsubEvents?.includes(method)) unsub();
+              });
+            }
+          }
+        );
+      } catch (e) {
+        onError(ManualSigners.includes(source) ? source : 'default');
+      }
+    } else {
+      // handle unsigned transaction.
+      const { signer } = account;
+      try {
+        const unsub = await txRef.current.signAndSend(
+          fromRef.current,
+          { signer },
+          ({ status, events = [] }: AnyApi) => {
+            if (!didTxReset.current) {
+              didTxReset.current = true;
+              resetTx();
+            }
+
+            handleStatus(status);
+            if (status.isFinalized) {
+              events.forEach(({ event: { method } }: AnyApi) => {
+                onFinalizedEvent(method);
+                if (unsubEvents?.includes(method)) unsub();
+              });
+            }
+          }
+        );
+      } catch (e) {
+        onError('default');
+      }
     }
   };
 
+  // Refresh state upon `tx` updates.
+  useEffect(() => {
+    // update txRef to latest tx.
+    txRef.current = tx;
+    // update submit address to latest from.
+    fromRef.current = from || '';
+    // wrap tx in proxy call if active proxy & proxy supported.
+    wrapTxIfActiveProxy();
+    // ensure sender is up to date.
+    setSender(fromRef.current);
+    // re-calculate estimated tx fee.
+    calculateEstimatedFee();
+    // rebuild tx payload.
+    buildPayload(txRef.current, fromRef.current, uid);
+  }, [tx?.toString(), tx?.method?.args?.calls?.toString(), from]);
+
   return {
-    submitTx,
+    uid,
+    onSubmit,
     submitting,
+    submitAddress: fromRef.current,
+    proxySupported: isProxySupported(txRef.current, fromRef.current),
   };
 };

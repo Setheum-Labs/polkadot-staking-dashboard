@@ -1,6 +1,7 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
+import BigNumber from 'bignumber.js';
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -11,25 +12,20 @@ import {
   Title,
   Tooltip,
 } from 'chart.js';
-import { useApi } from 'contexts/Api';
-import { usePoolMemberships } from 'contexts/Pools/PoolMemberships';
-import { useStaking } from 'contexts/Staking';
-import { useSubscan } from 'contexts/Subscan';
-import { useTheme } from 'contexts/Themes';
-import { useUi } from 'contexts/UI';
 import { Line } from 'react-chartjs-2';
 import { useTranslation } from 'react-i18next';
-import {
-  defaultThemes,
-  networkColors,
-  networkColorsSecondary,
-} from 'theme/default';
-import { AnySubscan } from 'types';
-import { humanNumber } from 'Utils';
-import { PayoutLineProps } from './types';
+import { usePoolMemberships } from 'contexts/Pools/PoolMemberships';
+import { useStaking } from 'contexts/Staking';
+import { useSubscan } from 'contexts/Plugins/Subscan';
+import { useTheme } from 'contexts/Themes';
+import { useUi } from 'contexts/UI';
+import { graphColors } from 'styles/graphs';
+import type { AnySubscan } from 'types';
+import { useNetwork } from 'contexts/Network';
+import type { PayoutLineProps } from './types';
 import {
   calculatePayoutAverages,
-  combineRewardsByDay,
+  combineRewards,
   formatRewardsForGraphs,
 } from './Utils';
 
@@ -51,11 +47,11 @@ export const PayoutLine = ({
 }: PayoutLineProps) => {
   const { t } = useTranslation('library');
   const { mode } = useTheme();
-  const { name, unit, units } = useApi().network;
   const { isSyncing } = useUi();
   const { inSetup } = useStaking();
-  const { membership: poolMembership } = usePoolMemberships();
   const { payouts, poolClaims } = useSubscan();
+  const { unit, units, colors } = useNetwork().networkData;
+  const { membership: poolMembership } = usePoolMemberships();
 
   const notStaking = !isSyncing && inSetup() && !poolMembership;
   const poolingOnly = !isSyncing && inSetup() && poolMembership !== null;
@@ -65,24 +61,38 @@ export const PayoutLine = ({
     (p: AnySubscan) => p.event_id !== 'Slashed'
   );
 
-  const { payoutsByDay, poolClaimsByDay } = formatRewardsForGraphs(
+  // define the most recent date that we will show on the graph.
+  const fromDate = new Date();
+
+  const { allPayouts, allPoolClaims } = formatRewardsForGraphs(
+    fromDate,
     days,
     units,
     payoutsNoSlash,
-    poolClaims
+    poolClaims,
+    [] // Note: we are not using `unclaimedPayouts` here.
   );
 
-  // combine payouts and pool claims into one dataset and calculate averages.
-  const combined = combineRewardsByDay(payoutsByDay, poolClaimsByDay);
+  const { p: graphPayouts, a: graphPrePayouts } = allPayouts;
+  const { p: graphPoolClaims, a: graphPrePoolClaims } = allPoolClaims;
 
-  const combinedPayouts = calculatePayoutAverages(combined, 10, days);
+  // combine payouts and pool claims into one dataset and calculate averages.
+  const combined = combineRewards(graphPayouts, graphPoolClaims);
+  const preCombined = combineRewards(graphPrePayouts, graphPrePoolClaims);
+
+  const combinedPayouts = calculatePayoutAverages(
+    preCombined.concat(combined),
+    fromDate,
+    days,
+    10
+  );
 
   // determine color for payouts
   const color = notStaking
-    ? networkColors[`${name}-${mode}`]
+    ? colors.primary[mode]
     : !poolingOnly
-    ? networkColors[`${name}-${mode}`]
-    : networkColorsSecondary[`${name}-${mode}`];
+      ? colors.primary[mode]
+      : colors.secondary[mode];
 
   // configure graph options
   const options = {
@@ -108,7 +118,7 @@ export const PayoutLine = ({
           display: false,
         },
         grid: {
-          color: defaultThemes.graphs.grid[mode],
+          color: graphColors.grid[mode],
         },
       },
     },
@@ -118,15 +128,18 @@ export const PayoutLine = ({
       },
       tooltip: {
         displayColors: false,
-        backgroundColor: defaultThemes.graphs.tooltip[mode],
-        titleColor: defaultThemes.text.invert[mode],
-        bodyColor: defaultThemes.text.invert[mode],
+        backgroundColor: graphColors.tooltip[mode],
+        titleColor: graphColors.label[mode],
+        bodyColor: graphColors.label[mode],
         bodyFont: {
           weight: '600',
         },
         callbacks: {
           title: () => [],
-          label: (context: any) => ` ${humanNumber(context.parsed.y)} ${unit}`,
+          label: (context: any) =>
+            ` ${new BigNumber(context.parsed.y)
+              .decimalPlaces(units)
+              .toFormat()} ${unit}`,
         },
         intersect: false,
         interaction: {
@@ -157,10 +170,11 @@ export const PayoutLine = ({
         {average > 1 ? `${average} ${t('dayAverage')}` : null}
       </h5>
       <div
-        className="graph_line"
         style={{
           height: height || 'auto',
           background: background || 'none',
+          marginTop: '0.6rem',
+          padding: '0 0 0.5rem 1.5rem',
         }}
       >
         <Line options={options} data={data} />
@@ -168,5 +182,3 @@ export const PayoutLine = ({
     </>
   );
 };
-
-export default PayoutLine;

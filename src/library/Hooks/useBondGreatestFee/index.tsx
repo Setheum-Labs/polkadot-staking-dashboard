@@ -1,12 +1,12 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
-import { useApi } from 'contexts/Api';
-import { useConnect } from 'contexts/Connect';
-import { useTransferOptions } from 'contexts/TransferOptions';
+import BigNumber from 'bignumber.js';
 import { useEffect, useMemo, useState } from 'react';
-import { BondFor } from 'types';
+import { useApi } from 'contexts/Api';
+import { useTransferOptions } from 'contexts/TransferOptions';
+import type { BondFor } from 'types';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
 interface Props {
   bondFor: BondFor;
@@ -14,16 +14,16 @@ interface Props {
 
 export const useBondGreatestFee = ({ bondFor }: Props) => {
   const { api } = useApi();
-  const { activeAccount } = useConnect();
-  const { getTransferOptions } = useTransferOptions();
+  const { activeAccount } = useActiveAccounts();
+  const { feeReserve, getTransferOptions } = useTransferOptions();
   const transferOptions = useMemo(
     () => getTransferOptions(activeAccount),
     [activeAccount]
   );
-  const { freeBalance } = transferOptions;
+  const { transferrableBalance } = transferOptions;
 
   // store the largest possible tx fees for bonding.
-  const [largestTxFee, setLargestTxFee] = useState<BN>(new BN(0));
+  const [largestTxFee, setLargestTxFee] = useState<BigNumber>(new BigNumber(0));
 
   // update max tx fee on free balance change
   useEffect(() => {
@@ -38,11 +38,14 @@ export const useBondGreatestFee = ({ bondFor }: Props) => {
 
   // estimate the largest possible tx fee based on users free balance.
   const txLargestFee = async () => {
-    const bond = freeBalance.toString();
+    const bond = BigNumber.max(
+      transferrableBalance.minus(feeReserve),
+      0
+    ).toString();
 
     let tx = null;
     if (!api) {
-      return new BN(0);
+      return new BigNumber(0);
     }
     if (bondFor === 'pool') {
       tx = api.tx.nominationPools.bondExtra({
@@ -54,12 +57,10 @@ export const useBondGreatestFee = ({ bondFor }: Props) => {
 
     if (tx) {
       const { partialFee } = await tx.paymentInfo(activeAccount || '');
-      return new BN(partialFee.toString());
+      return new BigNumber(partialFee.toString());
     }
-    return new BN(0);
+    return new BigNumber(0);
   };
 
   return largestTxFee;
 };
-
-export default useBondGreatestFee;

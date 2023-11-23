@@ -1,26 +1,16 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 export interface UIContextInterface {
-  setSideMenu: (v: number) => void;
-  setUserSideMenuMinimised: (v: number) => void;
+  setSideMenu: (v: boolean) => void;
+  setUserSideMenuMinimised: (v: boolean) => void;
   setContainerRefs: (v: any) => void;
-  getSyncById: (id: string) => number | null;
-  getSyncStart: (id: string) => number;
-  setSyncStart: (id: string, start: number) => void;
-  getSyncSynced: (id: string) => boolean;
-  setSyncSynced: (id: string) => void;
-  sideMenuOpen: number;
-  userSideMenuMinimised: number;
-  sideMenuMinimised: number;
+  sideMenuOpen: boolean;
+  userSideMenuMinimised: boolean;
+  sideMenuMinimised: boolean;
   containerRefs: any;
   isSyncing: boolean;
-  networkSyncing: boolean;
-  poolsSyncing: boolean;
-}
-
-export interface SyncStart {
-  id: string;
-  start: number | null;
-  synced: boolean;
+  isNetworkSyncing: boolean;
+  isPoolSyncing: boolean;
+  isBraveBrowser: boolean;
 }

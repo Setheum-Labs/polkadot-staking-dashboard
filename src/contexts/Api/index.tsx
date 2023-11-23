@@ -1,13 +1,13 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { ScProvider } from '@polkadot/rpc-provider/substrate-connect';
-import * as Sc from '@substrate/connect';
-import BN from 'bn.js';
-import { NETWORKS } from 'config/networks';
+import { makeCancelable, rmCommas } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { NetworkList } from 'config/networks';
 import {
-  ApiEndpoints,
   FallbackBondingDuration,
   FallbackEpochDuration,
   FallbackExpectedBlockTime,
@@ -16,217 +16,210 @@ import {
   FallbackNominatorRewardedPerValidator,
   FallbackSessionsPerEra,
 } from 'consts';
-import {
+import type {
+  APIChainState,
   APIConstants,
   APIContextInterface,
-  ConnectionStatus,
-  NetworkState,
+  APIProviderProps,
+  ApiStatus,
 } from 'contexts/Api/types';
-import React, { useEffect, useState } from 'react';
-import { AnyApi, Network, NetworkName } from 'types';
-import { extractUrlValue, varToUrlHash } from 'Utils';
-import * as defaults from './defaults';
+import type { AnyApi } from 'types';
+import { useEffectIgnoreInitial } from '@polkadot-cloud/react/hooks';
+import {
+  defaultApiContext,
+  defaultChainState,
+  defaultConsts,
+} from './defaults';
 
-export const APIContext = React.createContext<APIContextInterface>(
-  defaults.defaultApiContext
-);
-
-export const useApi = () => React.useContext(APIContext);
-
-export const APIProvider = ({ children }: { children: React.ReactNode }) => {
-  // Get the initial network and prepare meta tags if necessary.
-  const getInitialNetwork = (): NetworkName => {
-    const urlNetworkRaw = extractUrlValue('n');
-
-    const urlNetworkValid = !!Object.values(NETWORKS).find(
-      (n: any) => n.name === urlNetworkRaw
-    );
-
-    // use network from url if valid.
-    if (urlNetworkValid) {
-      const urlNetwork = urlNetworkRaw as NetworkName;
-
-      if (urlNetworkValid) {
-        return urlNetwork;
-      }
-    }
-    // fallback to localStorage network if there.
-    const localNetwork: NetworkName = localStorage.getItem(
-      'network'
-    ) as NetworkName;
-    const localNetworkValid = !!Object.values(NETWORKS).find(
-      (n: any) => n.name === localNetwork
-    );
-
-    if (localNetworkValid) {
-      return localNetwork;
-    }
-    // fallback to default network.
-    return 'polkadot';
-  };
-
-  // provider instance state
+export const APIProvider = ({ children, network }: APIProviderProps) => {
+  // Store povider instance.
   const [provider, setProvider] = useState<WsProvider | ScProvider | null>(
     null
   );
 
-  // handle network switching
-  const switchNetwork = async (
-    _network: NetworkName,
-    _isLightClient: boolean
-  ) => {
-    localStorage.setItem('isLightClient', _isLightClient ? 'true' : '');
-    setIsLightClient(_isLightClient);
+  // Store chain state.
+  const [chainState, setchainState] =
+    useState<APIChainState>(defaultChainState);
 
-    // update url `n` if needed.
-    varToUrlHash('n', _network, false);
+  // Store the active RPC provider.
+  const initialRpcEndpoint = () => {
+    const local = localStorage.getItem(`${network}_rpc_endpoint`);
+    if (local)
+      if (NetworkList[network].endpoints.rpcEndpoints[local]) {
+        return local;
+      } else {
+        localStorage.removeItem(`${network}_rpc_endpoint`);
+      }
 
-    // disconnect api if not null
-    if (api) {
-      await api.disconnect();
-    }
-    setApi(null);
-    setConnectionStatus('connecting');
-    connect(_network, _isLightClient);
+    return NetworkList[network].endpoints.defaultRpcEndpoint;
   };
+  const [rpcEndpoint, setRpcEndpointState] =
+    useState<string>(initialRpcEndpoint());
 
-  // handles fetching of DOT price and updates context state.
-  const fetchDotPrice = async () => {
-    const urls = [
-      `${ApiEndpoints.priceChange}${NETWORKS[network.name].api.priceTicker}`,
-    ];
-
-    const responses = await Promise.all(
-      urls.map((u) => fetch(u, { method: 'GET' }))
-    );
-    const texts = await Promise.all(responses.map((res) => res.json()));
-    const _change = texts[0];
-
-    if (
-      _change.lastPrice !== undefined &&
-      _change.priceChangePercent !== undefined
-    ) {
-      const price: string = (Math.ceil(_change.lastPrice * 100) / 100).toFixed(
-        2
-      );
-      const change: string = (
-        Math.round(_change.priceChangePercent * 100) / 100
-      ).toFixed(2);
-
-      return {
-        lastPrice: price,
-        change,
-      };
-    }
-    return null;
-  };
+  // Store whether in light client mode.
+  const [isLightClient, setIsLightClient] = useState<boolean>(
+    !!localStorage.getItem('light_client')
+  );
 
   // API instance state.
   const [api, setApi] = useState<ApiPromise | null>(null);
 
-  // Store the initial active network.
-  const initialNetwork = getInitialNetwork();
-  const [network, setNetwork] = useState<NetworkState>({
-    name: initialNetwork,
-    meta: NETWORKS[initialNetwork],
-  });
-
   // Store network constants.
-  const [consts, setConsts] = useState<APIConstants>(defaults.consts);
+  const [consts, setConsts] = useState<APIConstants>(defaultConsts);
 
   // Store API connection status.
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>('disconnected');
+  const [apiStatus, setApiStatus] = useState<ApiStatus>('disconnected');
 
-  const [isLightClient, setIsLightClient] = useState<boolean>(
-    !!localStorage.getItem('isLightClient')
-  );
+  // Set RPC provider with local storage and validity checks.
+  const setRpcEndpoint = (key: string) => {
+    if (!NetworkList[network].endpoints.rpcEndpoints[key]) return;
+    localStorage.setItem(`${network}_rpc_endpoint`, key);
 
-  // Handle the initial connection
-  useEffect(() => {
-    if (!provider) {
-      const _network = getInitialNetwork();
-      connect(_network, isLightClient);
+    setRpcEndpointState(key);
+  };
+
+  // Handle light client connection.
+  const handleLightClientConnection = async (Sc: AnyApi) => {
+    const newProvider = new ScProvider(
+      Sc,
+      NetworkList[network].endpoints.lightClient
+    );
+    connectProvider(newProvider);
+  };
+
+  // Handle a switch in API.
+  let cancelFn: () => void | undefined;
+
+  const handleApiSwitch = () => {
+    setApi(null);
+    setConsts(defaultConsts);
+    setchainState(defaultChainState);
+  };
+
+  // Handle connect to API.
+  // Dynamically load `Sc` when user opts to use light client.
+  const handleConnectApi = async () => {
+    if (api) {
+      await api.disconnect();
+      setApi(null);
     }
-  });
-
-  // Provider event handlers
-  useEffect(() => {
-    if (provider !== null) {
-      provider.on('connected', () => {
-        setConnectionStatus('connected');
-      });
-      provider.on('error', () => {
-        setConnectionStatus('disconnected');
-      });
-      connectedCallback(provider);
+    // handle local light client flag.
+    if (isLightClient) {
+      localStorage.setItem('light_client', isLightClient ? 'true' : '');
+    } else {
+      localStorage.removeItem('light_client');
     }
-  }, [provider]);
 
-  // connection callback
-  const connectedCallback = async (_provider: WsProvider | ScProvider) => {
-    const _api = await ApiPromise.create({ provider: _provider });
+    if (isLightClient) {
+      handleApiSwitch();
+      setApiStatus('connecting');
 
-    // update connection status
-    setConnectionStatus('connected');
+      const ScPromise = makeCancelable(import('@substrate/connect'));
+      cancelFn = ScPromise.cancel;
+      ScPromise.promise.then((Sc) => {
+        handleLightClientConnection(Sc);
+      });
+    } else {
+      // if not light client, directly connect.
+      setApiStatus('connecting');
+      connectProvider();
+    }
+  };
 
-    // put active network in localStorage
-    localStorage.setItem('network', String(network.name));
+  // Fetch chain state. Called once `provider` has been initialised.
+  const getChainState = async () => {
+    if (!provider) return;
 
-    // constants
-    const promises = [
-      _api.consts.staking.bondingDuration,
-      _api.consts.staking.maxNominations,
-      _api.consts.staking.sessionsPerEra,
-      _api.consts.staking.maxNominatorRewardedPerValidator,
-      _api.consts.electionProviderMultiPhase.maxElectingVoters,
-      _api.consts.babe.expectedBlockTime,
-      _api.consts.babe.epochDuration,
-      _api.consts.balances.existentialDeposit,
-      _api.consts.staking.historyDepth,
-      _api.consts.nominationPools.palletId,
-    ];
+    // initiate new api and set connected.
+    const newApi = await ApiPromise.create({ provider });
 
-    // fetch constants
-    const _consts: AnyApi = await Promise.all(promises);
+    // set connected here in case event listeners have not yet initialised.
+    setApiStatus('connected');
 
-    // format constants
-    const bondDuration = _consts[0]
-      ? Number(_consts[0].toString())
+    const newChainState = await Promise.all([
+      newApi.rpc.system.chain(),
+      newApi.consts.system.version,
+      newApi.consts.system.ss58Prefix,
+    ]);
+
+    // check that chain values have been fetched before committing to state.
+    // could be expanded to check supported chains.
+    if (newChainState.every((c) => !!c?.toHuman())) {
+      const chain = newChainState[0]?.toString();
+      const version = newChainState[1]?.toJSON();
+      const ss58Prefix = Number(newChainState[2]?.toString());
+
+      setchainState({ chain, version, ss58Prefix });
+    }
+
+    // store active network in localStorage.
+    // NOTE: this should ideally refer to above `chain` value.
+    localStorage.setItem('network', String(network));
+
+    // Assume chain state is correct and bootstrap network consts.
+    connectedCallback(newApi);
+  };
+
+  // Connection callback. Called once `provider` and `api` have been initialised.
+  const connectedCallback = async (newApi: ApiPromise) => {
+    // fetch constants.
+    const result = await Promise.all([
+      newApi.consts.staking.bondingDuration,
+      newApi.consts.staking.maxNominations,
+      newApi.consts.staking.sessionsPerEra,
+      newApi.consts.staking.maxNominatorRewardedPerValidator,
+      newApi.consts.electionProviderMultiPhase.maxElectingVoters,
+      newApi.consts.babe.expectedBlockTime,
+      newApi.consts.babe.epochDuration,
+      newApi.consts.balances.existentialDeposit,
+      newApi.consts.staking.historyDepth,
+      newApi.consts.fastUnstake.deposit,
+      newApi.consts.nominationPools.palletId,
+    ]);
+
+    // format constants.
+    const bondDuration = result[0]
+      ? new BigNumber(rmCommas(result[0].toString()))
       : FallbackBondingDuration;
 
-    const maxNominations = _consts[1]
-      ? Number(_consts[1].toString())
+    const maxNominations = result[1]
+      ? new BigNumber(rmCommas(result[1].toString()))
       : FallbackMaxNominations;
 
-    const sessionsPerEra = _consts[2]
-      ? Number(_consts[2].toString())
+    const sessionsPerEra = result[2]
+      ? new BigNumber(rmCommas(result[2].toString()))
       : FallbackSessionsPerEra;
 
-    const maxNominatorRewardedPerValidator = _consts[3]
-      ? Number(_consts[3].toString())
+    const maxNominatorRewardedPerValidator = result[3]
+      ? new BigNumber(rmCommas(result[3].toString()))
       : FallbackNominatorRewardedPerValidator;
 
-    const maxElectingVoters = _consts[4]
-      ? Number(_consts[4].toString())
+    const maxElectingVoters = result[4]
+      ? new BigNumber(rmCommas(result[4].toString()))
       : FallbackMaxElectingVoters;
 
-    const expectedBlockTime = _consts[5]
-      ? Number(_consts[5].toString())
+    const expectedBlockTime = result[5]
+      ? new BigNumber(rmCommas(result[5].toString()))
       : FallbackExpectedBlockTime;
 
-    const epochDuration = _consts[6]
-      ? Number(_consts[6].toString())
+    const epochDuration = result[6]
+      ? new BigNumber(rmCommas(result[6].toString()))
       : FallbackEpochDuration;
 
-    const existentialDeposit = _consts[7]
-      ? new BN(_consts[7].toString())
-      : new BN(0);
+    const existentialDeposit = result[7]
+      ? new BigNumber(rmCommas(result[7].toString()))
+      : new BigNumber(0);
 
-    const historyDepth = _consts[8] ? new BN(_consts[8].toString()) : new BN(0);
-    const poolsPalletId = _consts[9] ? _consts[9].toU8a() : new Uint8Array(0);
+    const historyDepth = result[8]
+      ? new BigNumber(rmCommas(result[8].toString()))
+      : new BigNumber(0);
 
-    setApi(_api);
+    const fastUnstakeDeposit = result[9]
+      ? new BigNumber(rmCommas(result[9].toString()))
+      : new BigNumber(0);
+
+    const poolsPalletId = result[10] ? result[10].toU8a() : new Uint8Array(0);
+
     setConsts({
       bondDuration,
       maxNominations,
@@ -238,44 +231,75 @@ export const APIProvider = ({ children }: { children: React.ReactNode }) => {
       expectedBlockTime,
       poolsPalletId,
       existentialDeposit,
+      fastUnstakeDeposit,
     });
+    setApi(newApi);
   };
 
-  // connect function sets provider and updates active network.
-  const connect = async (_network: NetworkName, _isLightClient?: boolean) => {
-    const nodeEndpoint: Network = NETWORKS[_network];
-    const { endpoints } = nodeEndpoint;
-
-    let _provider: WsProvider | ScProvider;
-    if (_isLightClient) {
-      _provider = new ScProvider(Sc, endpoints.lightClient);
-      await _provider.connect();
-    } else {
-      _provider = new WsProvider(endpoints.rpc);
+  // Connect function sets provider and updates active network.
+  const connectProvider = async (lc?: ScProvider) => {
+    const newProvider =
+      lc ||
+      new WsProvider(NetworkList[network].endpoints.rpcEndpoints[rpcEndpoint]);
+    if (lc) {
+      await newProvider.connect();
     }
-
-    setProvider(_provider);
-    setNetwork({
-      name: _network,
-      meta: NETWORKS[_network],
-    });
+    setProvider(newProvider);
   };
+
+  // Handle an initial RPC connection.
+  useEffect(() => {
+    if (!provider && !isLightClient) {
+      connectProvider();
+    }
+  });
+
+  // If RPC endpoint changes, and not on light client, re-connect.
+  useEffectIgnoreInitial(() => {
+    if (!isLightClient) handleConnectApi();
+  }, [rpcEndpoint]);
+
+  // Trigger API connection handler on network or light client change.
+  useEffect(() => {
+    setRpcEndpoint(initialRpcEndpoint());
+    handleConnectApi();
+    return () => {
+      cancelFn?.();
+    };
+  }, [isLightClient, network]);
+
+  // Initialise provider event handlers when provider is set.
+  useEffectIgnoreInitial(() => {
+    if (provider) {
+      provider.on('connected', () => {
+        setApiStatus('connected');
+      });
+      provider.on('error', () => {
+        setApiStatus('disconnected');
+      });
+      getChainState();
+    }
+  }, [provider]);
 
   return (
     <APIContext.Provider
       value={{
-        connect,
-        fetchDotPrice,
-        switchNetwork,
         api,
         consts,
-        isReady: connectionStatus === 'connected' && api !== null,
-        network: network.meta,
-        status: connectionStatus,
+        chainState,
+        apiStatus,
         isLightClient,
+        setIsLightClient,
+        rpcEndpoint,
+        setRpcEndpoint,
+        isReady: apiStatus === 'connected' && api !== null,
       }}
     >
       {children}
     </APIContext.Provider>
   );
 };
+
+export const APIContext = createContext<APIContextInterface>(defaultApiContext);
+
+export const useApi = () => useContext(APIContext);

@@ -1,15 +1,15 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PaginationWrapper } from '.';
-import { PaginationProps } from './types';
+import type { PaginationProps } from './types';
 
 export const Pagination = ({ page, total, setter }: PaginationProps) => {
+  const { t } = useTranslation('library');
   const [next, setNext] = useState<number>(page + 1 > total ? total : page + 1);
   const [prev, setPrev] = useState<number>(page - 1 < 1 ? 1 : page - 1);
-  const { t } = useTranslation('library');
 
   useEffect(() => {
     setNext(page + 1 > total ? total : page + 1);
@@ -17,7 +17,7 @@ export const Pagination = ({ page, total, setter }: PaginationProps) => {
   }, [page, total]);
 
   return (
-    <PaginationWrapper prev={page !== 1} next={page !== total}>
+    <PaginationWrapper $prev={page !== 1} $next={page !== total}>
       <div>
         <h4>{t('page', { page, total })}</h4>
       </div>

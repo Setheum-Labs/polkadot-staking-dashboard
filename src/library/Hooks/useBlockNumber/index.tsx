@@ -1,27 +1,29 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
+import { rmCommas } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { useEffect, useRef, useState } from 'react';
 import { useApi } from 'contexts/Api';
-import { useEffect, useState } from 'react';
-import { AnyApi } from 'types';
+import type { AnyApi } from 'types';
+import { useNetwork } from 'contexts/Network';
 
 export const useBlockNumber = () => {
-  const { isReady, api, network } = useApi();
+  const { network } = useNetwork();
+  const { isReady, api } = useApi();
 
   // store the current block number.
-  const [block, setBlock] = useState<BN>(new BN(0));
+  const [block, setBlock] = useState<BigNumber>(new BigNumber(0));
 
-  // store network metrics unsubscribe.
-  const [unsub, setUnsub] = useState<AnyApi>(undefined);
+  // store block unsub.
+  const unsub = useRef<AnyApi>();
 
   useEffect(() => {
-    if (!isReady) return;
-
-    subscribeBlockNumber();
-
+    if (isReady) {
+      subscribeBlockNumber();
+    }
     return () => {
-      if (unsub) unsub();
+      if (unsub.current) unsub.current();
     };
   }, [network, isReady]);
 
@@ -30,12 +32,12 @@ export const useBlockNumber = () => {
 
     const subscribeBlock = async () => {
       const u = await api.query.system.number((number: AnyApi) => {
-        setBlock(number.toBn());
+        setBlock(new BigNumber(rmCommas(number.toString())));
       });
       return u;
     };
-    Promise.all([subscribeBlock]).then((u) => {
-      setUnsub(u[0]);
+    Promise.all([subscribeBlock]).then(([u]) => {
+      unsub.current = u;
     });
   };
 

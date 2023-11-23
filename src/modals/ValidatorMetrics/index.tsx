@@ -1,64 +1,64 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { BN } from 'bn.js';
-import { useApi } from 'contexts/Api';
-import { useModal } from 'contexts/Modal';
-import { useNetworkMetrics } from 'contexts/Network';
+import { ButtonHelp, ModalPadding, Polkicon } from '@polkadot-cloud/react';
+import { ellipsisFn, planckToUnit } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useHelp } from 'contexts/Help';
+import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { useStaking } from 'contexts/Staking';
-import { useSubscan } from 'contexts/Subscan';
+import { useSubscan } from 'contexts/Plugins/Subscan';
+import { CardHeaderWrapper, CardWrapper } from 'library/Card/Wrappers';
 import { EraPoints as EraPointsGraph } from 'library/Graphs/EraPoints';
 import { formatSize } from 'library/Graphs/Utils';
-import { GraphWrapper } from 'library/Graphs/Wrappers';
+import { GraphWrapper } from 'library/Graphs/Wrapper';
 import { useSize } from 'library/Hooks/useSize';
-import Identicon from 'library/Identicon';
 import { Title } from 'library/Modal/Title';
-import { StatsWrapper, StatWrapper } from 'library/Modal/Wrappers';
-import { OpenHelpIcon } from 'library/OpenHelpIcon';
+import { StatWrapper, StatsWrapper } from 'library/Modal/Wrappers';
 import { StatusLabel } from 'library/StatusLabel';
-import { SubscanButton } from 'library/SubscanButton';
-import { PaddingWrapper } from 'modals/Wrappers';
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { clipAddress, humanNumber, planckBnToUnit, rmCommas } from 'Utils';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { PluginLabel } from 'library/PluginLabel';
+import { useNetwork } from 'contexts/Network';
 
 export const ValidatorMetrics = () => {
-  const {
-    network: { units, unit },
-  } = useApi();
-  const { config } = useModal();
-  const { address, identity } = config;
-  const { fetchEraPoints }: any = useSubscan();
-  const { metrics } = useNetworkMetrics();
-  const { eraStakers } = useStaking();
-  const { stakers } = eraStakers;
   const { t } = useTranslation('modals');
+  const {
+    networkData: { units, unit },
+  } = useNetwork();
+  const { options } = useOverlay().modal.config;
+  const { address, identity } = options;
+  const { fetchEraPoints }: any = useSubscan();
+  const { activeEra } = useNetworkMetrics();
+  const {
+    eraStakers: { stakers },
+  } = useStaking();
+  const { openHelp } = useHelp();
 
   // is the validator in the active era
-  const validatorInEra =
-    stakers.find((s: any) => s.address === address) || null;
+  const validatorInEra = stakers.find((s) => s.address === address) || null;
 
-  let ownStake = new BN(0);
-  let otherStake = new BN(0);
+  let validatorOwnStake = new BigNumber(0);
+  let otherStake = new BigNumber(0);
   if (validatorInEra) {
     const { others, own } = validatorInEra;
 
-    others.forEach((o: any) => {
-      otherStake = otherStake.add(new BN(rmCommas(o.value)));
+    others.forEach(({ value }) => {
+      otherStake = otherStake.plus(value);
     });
     if (own) {
-      ownStake = new BN(rmCommas(own));
+      validatorOwnStake = new BigNumber(own);
     }
   }
   const [list, setList] = useState([]);
 
-  const ref: any = React.useRef();
+  const ref = useRef<HTMLDivElement>(null);
   const size = useSize(ref.current);
   const { width, height, minHeight } = formatSize(size, 300);
 
   const handleEraPoints = async () => {
-    const _list = await fetchEraPoints(address, metrics.activeEra.index);
-    setList(_list);
+    setList(await fetchEraPoints(address, activeEra.index));
   };
 
   useEffect(() => {
@@ -68,12 +68,12 @@ export const ValidatorMetrics = () => {
   const stats = [
     {
       label: t('selfStake'),
-      value: `${humanNumber(planckBnToUnit(ownStake, units))} ${unit}`,
+      value: `${planckToUnit(validatorOwnStake, units).toFormat()} ${unit}`,
       help: 'Self Stake',
     },
     {
       label: t('nominatorStake'),
-      value: `${humanNumber(planckBnToUnit(otherStake, units))} ${unit}`,
+      value: `${planckToUnit(otherStake, units).toFormat()} ${unit}`,
       help: 'Nominator Stake',
     },
   ];
@@ -81,68 +81,63 @@ export const ValidatorMetrics = () => {
     <>
       <Title title={t('validatorMetrics')} />
       <div className="header">
-        <Identicon value={address} size={33} />
+        <Polkicon address={address} size={33} />
         <h2>
           &nbsp;&nbsp;
-          {identity === null ? clipAddress(address) : identity}
+          {identity === null ? ellipsisFn(address) : identity}
         </h2>
       </div>
 
-      <PaddingWrapper horizontalOnly>
+      <ModalPadding horizontalOnly>
         <StatsWrapper>
-          {stats.map(
-            (s: { label: string; value: string; help: string }, i: number) => (
-              <StatWrapper key={`metrics_stat_${i}`}>
-                <div className="inner">
-                  <h4>
-                    {s.label} <OpenHelpIcon helpKey={s.help} />
-                  </h4>
-                  <h2>{s.value}</h2>
-                </div>
-              </StatWrapper>
-            )
-          )}
+          {stats.map((s, i) => (
+            <StatWrapper key={`metrics_stat_${i}`}>
+              <div className="inner">
+                <h4>
+                  {s.label}{' '}
+                  <ButtonHelp marginLeft onClick={() => openHelp(s.help)} />
+                </h4>
+                <h2>{s.value}</h2>
+              </div>
+            </StatWrapper>
+          ))}
         </StatsWrapper>
-      </PaddingWrapper>
+      </ModalPadding>
       <div
         className="body"
         style={{ position: 'relative', marginTop: '0.5rem' }}
       >
-        <SubscanButton />
-        <GraphWrapper
+        <PluginLabel plugin="subscan" />
+        <CardWrapper
+          className="transparent"
           style={{
-            margin: '0 1.5rem 0 0.5rem',
+            margin: '0 0 0 0.5rem',
             height: 350,
-            border: 'none',
-            boxShadow: 'none',
           }}
-          flex
         >
-          <h4>
-            {t('recentEraPoints')} <OpenHelpIcon helpKey="Era Points" />
-          </h4>
-          <div className="inner" ref={ref} style={{ minHeight }}>
+          <CardHeaderWrapper $withMargin>
+            <h4>
+              {t('recentEraPoints')}{' '}
+              <ButtonHelp marginLeft onClick={() => openHelp('Era Points')} />
+            </h4>
+          </CardHeaderWrapper>
+          <div ref={ref} style={{ minHeight }}>
             <StatusLabel
               status="active_service"
               statusFor="subscan"
               title={t('subscanDisabled')}
             />
-            <div
-              className="graph"
+            <GraphWrapper
               style={{
                 height: `${height}px`,
                 width: `${width}px`,
-                position: 'absolute',
-                left: '-1rem',
               }}
             >
               <EraPointsGraph items={list} height={250} />
-            </div>
+            </GraphWrapper>
           </div>
-        </GraphWrapper>
+        </CardWrapper>
       </div>
     </>
   );
 };
-
-export default ValidatorMetrics;

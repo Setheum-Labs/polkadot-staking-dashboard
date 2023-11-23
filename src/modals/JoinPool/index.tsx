@@ -1,76 +1,111 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { faArrowAltCircleUp } from '@fortawesome/free-regular-svg-icons';
-import { faUserPlus } from '@fortawesome/free-solid-svg-icons';
-import { ButtonSubmit } from '@rossbulat/polkadot-dashboard-ui';
-import { BN } from 'bn.js';
-import { useApi } from 'contexts/Api';
-import { useConnect } from 'contexts/Connect';
-import { useModal } from 'contexts/Modal';
-import { usePoolMembers } from 'contexts/Pools/PoolMembers';
-import { useSetup } from 'contexts/Setup';
-import { defaultPoolSetup } from 'contexts/Setup/defaults';
-import { useTransferOptions } from 'contexts/TransferOptions';
-import { useTxFees } from 'contexts/TxFees';
-import { EstimatedTxFee } from 'library/EstimatedTxFee';
-import { BondFeedback } from 'library/Form/Bond/BondFeedback';
-import useBondGreatestFee from 'library/Hooks/useBondGreatestFee';
-import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
-import { Title } from 'library/Modal/Title';
+import { ModalPadding } from '@polkadot-cloud/react';
+import { planckToUnit, unitToPlanck } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { planckBnToUnit, unitToPlanckBn } from 'Utils';
-import { FooterWrapper, NotesWrapper, PaddingWrapper } from '../Wrappers';
-import { ContentWrapper } from './Wrapper';
+import { useApi } from 'contexts/Api';
+import { usePoolMembers } from 'contexts/Pools/PoolMembers';
+import type { ClaimPermission } from 'contexts/Pools/types';
+import { useSetup } from 'contexts/Setup';
+import { defaultPoolProgress } from 'contexts/Setup/defaults';
+import { useTransferOptions } from 'contexts/TransferOptions';
+import { useTxMeta } from 'contexts/TxMeta';
+import { BondFeedback } from 'library/Form/Bond/BondFeedback';
+import { ClaimPermissionInput } from 'library/Form/ClaimPermissionInput';
+import { useBatchCall } from 'library/Hooks/useBatchCall';
+import { useBondGreatestFee } from 'library/Hooks/useBondGreatestFee';
+import { useSignerWarnings } from 'library/Hooks/useSignerWarnings';
+import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
+import { Close } from 'library/Modal/Close';
+import { SubmitTx } from 'library/SubmitTx';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { useNetwork } from 'contexts/Network';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
 export const JoinPool = () => {
-  const { api, network } = useApi();
-  const { units } = network;
-  const { setStatus: setModalStatus, config, setResize } = useModal();
-  const { id: poolId, setActiveTab } = config;
-  const { activeAccount, accountHasSigner } = useConnect();
-  const { queryPoolMember, addToPoolMembers } = usePoolMembers();
-  const { setActiveAccountSetup } = useSetup();
-  const { txFeesValid } = useTxFees();
-  const { getTransferOptions } = useTransferOptions();
-  const { freeBalance } = getTransferOptions(activeAccount);
-  const largestTxFee = useBondGreatestFee({ bondFor: 'pool' });
   const { t } = useTranslation('modals');
+  const { api } = useApi();
+  const {
+    networkData: { units },
+  } = useNetwork();
+  const { activeAccount } = useActiveAccounts();
+  const { newBatchCall } = useBatchCall();
+  const { setActiveAccountSetup } = useSetup();
+  const { txFees, notEnoughFunds } = useTxMeta();
+  const { getSignerWarnings } = useSignerWarnings();
+  const { getTransferOptions } = useTransferOptions();
+  const { queryPoolMember, addToPoolMembers } = usePoolMembers();
+  const {
+    setModalStatus,
+    config: { options },
+    setModalResize,
+  } = useOverlay().modal;
+
+  const { id: poolId, setActiveTab } = options;
+
+  const {
+    pool: { totalPossibleBond },
+    transferrableBalance,
+  } = getTransferOptions(activeAccount);
+
+  const largestTxFee = useBondGreatestFee({ bondFor: 'pool' });
+
+  // if we are bonding, subtract tx fees from bond amount
+  const freeBondAmount = BigNumber.max(transferrableBalance.minus(txFees), 0);
 
   // local bond value
-  const [bond, setBond] = useState({
-    bond: planckBnToUnit(freeBalance, units),
+  const [bond, setBond] = useState<{ bond: string }>({
+    bond: planckToUnit(totalPossibleBond, units).toString(),
   });
+
+  // Updated claim permission value
+  const [claimPermission, setClaimPermission] = useState<
+    ClaimPermission | undefined
+  >('Permissioned');
 
   // bond valid
   const [bondValid, setBondValid] = useState<boolean>(false);
 
+  // feedback errors to trigger modal resize
+  const [feedbackErrors, setFeedbackErrors] = useState<string[]>([]);
+
   // modal resize on form update
-  useEffect(() => {
-    setResize();
-  }, [bond]);
+  useEffect(
+    () => setModalResize(),
+    [bond, notEnoughFunds, feedbackErrors.length]
+  );
 
   // tx to submit
   const getTx = () => {
-    let tx = null;
-    if (!bondValid || !api) {
+    const tx = null;
+    if (!api) {
       return tx;
     }
 
-    // remove decimal errors
-    const bondToSubmit = unitToPlanckBn(String(bond.bond), units);
-    tx = api.tx.nominationPools.join(bondToSubmit, poolId);
+    const bondToSubmit = unitToPlanck(!bondValid ? '0' : bond.bond, units);
+    const bondAsString = bondToSubmit.isNaN() ? '0' : bondToSubmit.toString();
+    const txs = [api.tx.nominationPools.join(bondAsString, poolId)];
 
-    return tx;
+    if (![undefined, 'Permissioned'].includes(claimPermission)) {
+      txs.push(api.tx.nominationPools.setClaimPermission(claimPermission));
+    }
+
+    if (txs.length === 1) {
+      return txs[0];
+    }
+
+    return newBatchCall(txs, activeAccount);
   };
 
-  const { submitTx, submitting } = useSubmitExtrinsic({
+  const submitExtrinsic = useSubmitExtrinsic({
     tx: getTx(),
     from: activeAccount,
     shouldSubmit: bondValid,
     callbackSubmit: () => {
-      setModalStatus(2);
+      setModalStatus('closing');
       setActiveTab(0);
     },
     callbackInBlock: async () => {
@@ -79,56 +114,49 @@ export const JoinPool = () => {
       addToPoolMembers(member);
 
       // reset localStorage setup progress
-      setActiveAccountSetup('pool', defaultPoolSetup);
+      setActiveAccountSetup('pool', defaultPoolProgress);
     },
   });
 
-  const warnings = [];
-  if (!accountHasSigner(activeAccount)) {
-    warnings.push(t('readOnly'));
-  }
+  const warnings = getSignerWarnings(
+    activeAccount,
+    false,
+    submitExtrinsic.proxySupported
+  );
+
   return (
     <>
-      <Title title={t('joinPool')} icon={faUserPlus} />
-      <PaddingWrapper>
-        <ContentWrapper>
-          <div>
-            <BondFeedback
-              syncing={largestTxFee.eq(new BN(0))}
-              bondFor="pool"
-              listenIsValid={setBondValid}
-              defaultBond={null}
-              setters={[
-                {
-                  set: setBond,
-                  current: bond,
-                },
-              ]}
-              warnings={warnings}
-              txFees={largestTxFee}
-            />
-            <NotesWrapper>
-              <EstimatedTxFee />
-            </NotesWrapper>
-          </div>
-          <FooterWrapper>
-            <div>
-              <ButtonSubmit
-                text={`${submitting ? t('submitting') : t('submit')}`}
-                iconLeft={faArrowAltCircleUp}
-                iconTransform="grow-2"
-                onClick={() => submitTx()}
-                disabled={
-                  submitting ||
-                  !bondValid ||
-                  !accountHasSigner(activeAccount) ||
-                  !txFeesValid
-                }
-              />
-            </div>
-          </FooterWrapper>
-        </ContentWrapper>
-      </PaddingWrapper>
+      <Close />
+      <ModalPadding>
+        <h2 className="title unbounded">{t('joinPool')}</h2>
+        <BondFeedback
+          syncing={largestTxFee.isZero()}
+          joiningPool
+          bondFor="pool"
+          listenIsValid={(valid, errors) => {
+            setBondValid(valid);
+            setFeedbackErrors(errors);
+          }}
+          defaultBond={null}
+          setters={[
+            {
+              set: setBond,
+              current: bond,
+            },
+          ]}
+          parentErrors={warnings}
+          txFees={largestTxFee}
+        />
+        <ClaimPermissionInput
+          current={undefined}
+          permissioned={false}
+          onChange={(val: ClaimPermission | undefined) => {
+            setClaimPermission(val);
+          }}
+          disabled={freeBondAmount.isZero()}
+        />
+      </ModalPadding>
+      <SubmitTx valid={bondValid} {...submitExtrinsic} />
     </>
   );
 };

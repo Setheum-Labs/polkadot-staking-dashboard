@@ -1,71 +1,73 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import NumberEasing from 'che-react-number-easing';
-import { StatPie } from 'library/Graphs/StatBoxPie';
-import { OpenHelpIcon } from 'library/OpenHelpIcon';
+import { ButtonHelp, Chart, Odometer } from '@polkadot-cloud/react';
+import { useEffect, useState } from 'react';
+import { useHelp } from 'contexts/Help';
+import BigNumber from 'bignumber.js';
 import { StatBox } from './Item';
-import { PieProps } from './types';
+import type { PieProps } from './types';
 
-export const Pie = (props: PieProps) => {
-  const { label, stat, graph, tooltip, helpKey } = props;
+export const Pie = ({ label, stat, graph, tooltip, helpKey }: PieProps) => {
   const help = helpKey !== undefined;
-
-  const showValue = stat?.value !== 0 || stat?.total === 0;
   const showTotal = !!stat?.total;
+  const { openHelp } = useHelp();
+
+  const [values, setValues] = useState<any>({
+    value: Number(stat?.value || 0),
+    total: Number(stat?.total || 0),
+  });
+
+  useEffect(() => {
+    setValues({
+      value: Number(stat?.value || 0),
+      total: Number(stat?.total || 0),
+    });
+  }, [stat]);
 
   return (
     <StatBox>
       <div className="content chart">
         <div className="chart">
-          <StatPie value={graph?.value1} value2={graph?.value2} />
-          {tooltip && (
+          <Chart
+            items={[
+              {
+                value: graph?.value1,
+                color: 'var(--accent-color-primary)',
+              },
+              {
+                value: graph?.value2,
+                color: 'var(--background-default)',
+              },
+            ]}
+            diameter={34}
+            speed={2}
+          />
+          {tooltip ? (
             <div className="tooltip">
               <h3>{tooltip}</h3>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="labels">
           <h3>
-            {showValue ? (
-              <>
-                <NumberEasing
-                  ease="quintInOut"
-                  precision={2}
-                  speed={250}
-                  trail={false}
-                  value={stat?.value}
-                  useLocaleString
-                />
-                {stat?.unit && <>{stat?.unit}</>}
+            <Odometer value={new BigNumber(values.value).toFormat()} />
+            {stat?.unit && <>{stat?.unit}</>}
 
-                {showTotal && (
-                  <span className="total">
-                    /{' '}
-                    <NumberEasing
-                      ease="quintInOut"
-                      precision={2}
-                      speed={250}
-                      trail={false}
-                      value={stat?.total}
-                      useLocaleString
-                    />
-                    {stat?.unit && (
-                      <>
-                        &nbsp;
-                        {stat?.unit}
-                      </>
-                    )}
-                  </span>
-                )}
-              </>
-            ) : (
-              <>0</>
-            )}
+            {showTotal ? (
+              <span className="total">
+                /&nbsp;
+                <Odometer value={new BigNumber(values.total).toFormat()} />
+                {stat?.unit ? <>{stat?.unit}unit</> : null}
+              </span>
+            ) : null}
           </h3>
           <h4>
-            {label} {help && <OpenHelpIcon helpKey={helpKey} />}
+            {label}{' '}
+            {help ? (
+              <ButtonHelp marginLeft onClick={() => openHelp(helpKey)} />
+            ) : null}
           </h4>
         </div>
       </div>

@@ -1,41 +1,46 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useApi } from 'contexts/Api';
+import { PageRow } from '@polkadot-cloud/react';
+import { useTranslation } from 'react-i18next';
+import { usePlugins } from 'contexts/Plugins';
 import { useActivePools } from 'contexts/Pools/ActivePools';
 import { usePoolMembers } from 'contexts/Pools/PoolMembers';
 import { useTheme } from 'contexts/Themes';
-import { CardWrapper } from 'library/Graphs/Wrappers';
-import { useTranslation } from 'react-i18next';
-import { PageRowWrapper } from 'Wrappers';
-import { MembersList } from './MembersList';
+import { CardWrapper } from 'library/Card/Wrappers';
+import { useNetwork } from 'contexts/Network';
+import { MembersList as DefaultMemberList } from './MembersList/Default';
+import { MembersList as FetchPageMemberList } from './MembersList/FetchPage';
 
 export const Members = () => {
-  const { network } = useApi();
-  const { mode } = useTheme();
-  const { getMembersOfPool } = usePoolMembers();
-  const { selectedActivePool, isOwner, isStateToggler } = useActivePools();
   const { t } = useTranslation('pages');
+  const { mode } = useTheme();
+  const { pluginEnabled } = usePlugins();
+  const { getMembersOfPoolFromNode } = usePoolMembers();
+  const { selectedActivePool, isOwner, isBouncer, selectedPoolMemberCount } =
+    useActivePools();
+  const { colors } = useNetwork().networkData;
 
-  const poolMembers = getMembersOfPool(selectedActivePool?.id ?? 0);
-  const poolMembersTitle = `${t('pools.poolMember', {
-    count: poolMembers.length,
-  })}`;
-
-  const networkColorsSecondary: any = network.colors.secondary;
-  const annuncementBorderColor = networkColorsSecondary[mode];
+  const annuncementBorderColor = colors.secondary[mode];
 
   const showBlockedPrompt =
     selectedActivePool?.bondedPool?.state === 'Blocked' &&
-    (isOwner() || isStateToggler());
+    (isOwner() || isBouncer());
+
+  const membersListProps = {
+    batchKey: 'active_pool_members',
+    pagination: true,
+    selectToggleable: false,
+    allowMoreCols: true,
+  };
 
   return (
     <>
-      {/* Pool in Blocked state: allow root & stage toggler to unbond & withdraw members */}
+      {/* Pool in Blocked state: allow root & bouncer to unbond & withdraw members */}
       {showBlockedPrompt && (
-        <PageRowWrapper className="page-padding" noVerticalSpacer>
+        <PageRow>
           <CardWrapper
             style={{ border: `1px solid ${annuncementBorderColor}` }}
           >
@@ -48,12 +53,12 @@ export const Members = () => {
               </h4>
             </div>
           </CardWrapper>
-        </PageRowWrapper>
+        </PageRow>
       )}
 
       {/* Pool in Destroying state: allow anyone to unbond & withdraw members */}
       {selectedActivePool?.bondedPool?.state === 'Destroying' && (
-        <PageRowWrapper className="page-padding" noVerticalSpacer>
+        <PageRow>
           <CardWrapper
             style={{ border: `1px solid ${annuncementBorderColor}` }}
           >
@@ -66,21 +71,24 @@ export const Members = () => {
               </h4>
             </div>
           </CardWrapper>
-        </PageRowWrapper>
+        </PageRow>
       )}
 
-      <PageRowWrapper className="page-padding" noVerticalSpacer>
+      <PageRow>
         <CardWrapper>
-          <MembersList
-            title={poolMembersTitle}
-            batchKey="active_pool_members"
-            members={poolMembers}
-            pagination
-            selectToggleable={false}
-            allowMoreCols
-          />
+          {pluginEnabled('subscan') ? (
+            <FetchPageMemberList
+              {...membersListProps}
+              memberCount={selectedPoolMemberCount}
+            />
+          ) : (
+            <DefaultMemberList
+              {...membersListProps}
+              members={getMembersOfPoolFromNode(selectedActivePool?.id ?? 0)}
+            />
+          )}
         </CardWrapper>
-      </PageRowWrapper>
+      </PageRow>
     </>
   );
 };

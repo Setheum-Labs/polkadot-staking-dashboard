@@ -1,21 +1,24 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
+import { faAngleRight } from '@fortawesome/free-solid-svg-icons';
 import {
-  ButtonInvertRounded,
   ButtonPrimary,
+  ButtonPrimaryInvert,
   ButtonSecondary,
-} from '@rossbulat/polkadot-dashboard-ui';
-import { useOverlay } from 'contexts/Overlay';
-import { usePlugins } from 'contexts/Plugins';
-import { Title } from 'library/Overlay/Title';
+} from '@polkadot-cloud/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { Title } from 'library/Prompt/Title';
+import { usePrompt } from 'contexts/Prompt';
+import { usePlugins } from 'contexts/Plugins';
 
-export const Tip = ({ title, description }: any) => {
+export const Tip = ({ title, description, page }: any) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { togglePlugin } = usePlugins();
-  const { closeOverlay } = useOverlay();
+  const { closePrompt } = usePrompt();
 
   const [disabling, setDisabling] = useState<boolean>(false);
 
@@ -28,17 +31,17 @@ export const Tip = ({ title, description }: any) => {
             <h4>{t('module.dismissResult', { ns: 'tips' })}</h4>
             <h4>{t('module.reEnable', { ns: 'tips' })}</h4>
 
-            <div style={{ marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', marginTop: '1.5rem' }}>
               <ButtonPrimary
                 marginRight
                 text={t('module.disableTips', { ns: 'tips' })}
                 onClick={() => {
                   togglePlugin('tips');
-                  closeOverlay();
+                  closePrompt();
                 }}
               />
-              <ButtonInvertRounded
-                text="Cancel"
+              <ButtonPrimaryInvert
+                text={t('module.cancel', { ns: 'tips' })}
                 onClick={() => setDisabling(false)}
                 style={{ marginLeft: '0.5rem' }}
               />
@@ -54,7 +57,21 @@ export const Tip = ({ title, description }: any) => {
                 {item}
               </h4>
             ))}
-            <div style={{ marginTop: '1.75rem' }}>
+            <div style={{ marginTop: '1.75rem', display: 'flex' }}>
+              {!!page && (
+                <ButtonPrimary
+                  marginRight
+                  text={`${t('goTo', { ns: 'base' })} ${t(page, {
+                    ns: 'base',
+                  })}`}
+                  onClick={() => {
+                    closePrompt();
+                    navigate(`/${page}`);
+                  }}
+                  iconRight={faAngleRight}
+                  iconTransform="shrink-1"
+                />
+              )}
               <ButtonSecondary
                 marginRight
                 text={t('module.disableTips', { ns: 'tips' })}

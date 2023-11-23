@@ -1,16 +1,16 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import {
   faBars,
   faShare,
   faUnlockAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMenu } from 'contexts/Menu';
-import { useModal } from 'contexts/Modal';
-import { useNetworkMetrics } from 'contexts/Network';
+import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { useActivePools } from 'contexts/Pools/ActivePools';
 import { usePoolMembers } from 'contexts/Pools/PoolMembers';
 import { useList } from 'library/List/context';
@@ -23,52 +23,48 @@ import {
   Separator,
   Wrapper,
 } from 'library/ListItem/Wrappers';
-import { useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
 
-export const Member = (props: any) => {
-  const { meta } = usePoolMembers();
-  const { openModalWith } = useModal();
-  const { selectActive } = useList();
-  const { metrics } = useNetworkMetrics();
-  const { selectedActivePool, isOwner, isStateToggler } = useActivePools();
-  const { setMenuPosition, setMenuItems, open }: any = useMenu();
-  const { activeEra } = metrics;
-  const { state, roles } = selectedActivePool?.bondedPool || {};
-  const { stateToggler, root, depositor } = roles || {};
+export const Member = ({ who, batchKey, batchIndex }: any) => {
   const { t } = useTranslation('pages');
-
-  const { who, batchKey, batchIndex } = props;
+  const { meta } = usePoolMembers();
+  const { openModal } = useOverlay().modal;
+  const { selectActive } = useList();
+  const { activeEra } = useNetworkMetrics();
+  const { selectedActivePool, isOwner, isBouncer } = useActivePools();
+  const { setMenuPosition, setMenuItems, open }: any = useMenu();
+  const { state, roles } = selectedActivePool?.bondedPool || {};
+  const { bouncer, root, depositor } = roles || {};
 
   const canUnbondBlocked =
     state === 'Blocked' &&
-    (isOwner() || isStateToggler()) &&
-    ![root, stateToggler].includes(who);
+    (isOwner() || isBouncer()) &&
+    ![root, bouncer].includes(who);
 
   const canUnbondDestroying = state === 'Destroying' && who !== depositor;
 
   const poolMembers = meta[batchKey]?.poolMembers ?? [];
   const member = poolMembers[batchIndex] ?? null;
 
-  const menuItems: Array<any> = [];
+  const menuItems: any[] = [];
 
   if (member && (canUnbondBlocked || canUnbondDestroying)) {
     const { points, unbondingEras } = member;
 
     if (points !== '0') {
       menuItems.push({
-        icon: <FontAwesomeIcon icon={faUnlockAlt as IconProp} />,
+        icon: <FontAwesomeIcon icon={faUnlockAlt} transform="shrink-3" />,
         wrap: null,
         title: `${t('pools.unbondFunds')}`,
         cb: () => {
-          openModalWith(
-            'UnbondPoolMember',
-            {
+          openModal({
+            key: 'UnbondPoolMember',
+            options: {
               who,
               member,
             },
-            'small'
-          );
+            size: 'sm',
+          });
         },
       });
     }
@@ -76,18 +72,22 @@ export const Member = (props: any) => {
     if (Object.values(unbondingEras).length) {
       let canWithdraw = false;
       for (const k of Object.keys(unbondingEras)) {
-        if (Number(activeEra.index) > Number(k)) {
+        if (activeEra.index.isGreaterThan(Number(k))) {
           canWithdraw = true;
         }
       }
 
       if (canWithdraw) {
         menuItems.push({
-          icon: <FontAwesomeIcon icon={faShare as IconProp} />,
+          icon: <FontAwesomeIcon icon={faShare} transform="shrink-3" />,
           wrap: null,
           title: `${t('pools.withdrawFunds')}`,
           cb: () => {
-            openModalWith('WithdrawPoolMember', { who, member }, 'small');
+            openModal({
+              key: 'WithdrawPoolMember',
+              options: { who, member },
+              size: 'sm',
+            });
           },
         });
       }
@@ -104,17 +104,12 @@ export const Member = (props: any) => {
   };
 
   return (
-    <Wrapper format="nomination">
+    <Wrapper className="member">
       <div className="inner">
         <MenuPosition ref={posRef} />
-        <div className="row">
+        <div className="row top">
           {selectActive && <Select item={who} />}
-          <Identity
-            meta={meta}
-            address={who}
-            batchIndex={batchIndex}
-            batchKey={batchKey}
-          />
+          <Identity address={who} />
           <div>
             <Labels>
               {menuItems.length > 0 && (
@@ -131,7 +126,7 @@ export const Member = (props: any) => {
           </div>
         </div>
         <Separator />
-        <div className="row status">
+        <div className="row bottom">
           <PoolMemberBonded
             who={who}
             meta={meta}

@@ -1,9 +1,13 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { HelpItems } from 'contexts/Help/types';
+import type { HelpItems } from 'contexts/Help/types';
 
-export const HELP_CONFIG: HelpItems = [
+export const HelpConfig: HelpItems = [
+  {
+    key: 'vault',
+    definitions: ['Polkadot Vault'],
+  },
   {
     key: 'overview',
     definitions: [
@@ -12,12 +16,14 @@ export const HELP_CONFIG: HelpItems = [
       'Your Balance',
       'Reserve Balance',
       'Locked Balance',
-      'Network Stats',
       'Historical Rewards Rate',
       'Adjusted Rewards Rate',
       'Inflation',
       'Ideal Staked',
       'Supply Staked',
+      'Read Only Accounts',
+      'Proxy Accounts',
+      'Reserve Balance For Existential Deposit',
     ],
     external: [
       [
@@ -41,11 +47,9 @@ export const HELP_CONFIG: HelpItems = [
     key: 'nominate',
     definitions: [
       'Nomination Status',
-      'Stash and Controller Accounts',
-      'Controller Account Eligibility',
       'Bonding',
-      'Active Bond Threshold',
-      'Reward Destination',
+      'Active Stake Threshold',
+      'Payout Destination',
       'Nominating',
       'Nominations',
       'Inactive Nominations',
@@ -94,6 +98,9 @@ export const HELP_CONFIG: HelpItems = [
       'Bonded in Pool',
       'Pool Rewards',
       'Pool Roles',
+      'Pool Commission Rate',
+      'Pool Max Commission',
+      'Pool Commission Change Rate',
     ],
     external: [
       [
@@ -122,6 +129,7 @@ export const HELP_CONFIG: HelpItems = [
       'Commission',
       'Over Subscribed',
       'Blocked Nominations',
+      'Rewards By Country And Network',
     ],
     external: [
       [
@@ -139,6 +147,18 @@ export const HELP_CONFIG: HelpItems = [
   {
     key: 'community',
     definitions: [],
+    external: [],
+  },
+  {
+    key: 'ledger',
+    definitions: [
+      'Ledger Hardware Wallets',
+      'Ledger Rejected Transaction',
+      'Ledger Request Timeout',
+      'Open App On Ledger',
+      'Ledger App Not on Latest Runtime Version',
+      'Wrong Transaction',
+    ],
     external: [],
   },
 ];

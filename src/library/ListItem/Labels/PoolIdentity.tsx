@@ -1,33 +1,29 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
+import { ellipsisFn, determinePoolDisplay } from '@polkadot-cloud/utils';
 import { useBondedPools } from 'contexts/Pools/BondedPools';
-import Identicon from 'library/Identicon';
+import { Polkicon } from '@polkadot-cloud/react';
 import { IdentityWrapper } from 'library/ListItem/Wrappers';
-import { clipAddress, determinePoolDisplay } from 'Utils';
-import { PoolIdentityProps } from '../types';
+import type { PoolIdentityProps } from '../types';
 
-export const PoolIdentity = (props: PoolIdentityProps) => {
-  const { meta } = useBondedPools();
+export const PoolIdentity = ({
+  pool: { addresses, id },
+}: PoolIdentityProps) => {
+  const { poolsMetaData } = useBondedPools();
+  const metadataSynced = Object.values(poolsMetaData).length > 0 ?? false;
 
-  const { pool, batchKey, batchIndex } = props;
-  const { addresses } = pool;
-
-  // get metadata from pools metabatch
-  const metadata = meta[batchKey]?.metadata ?? [];
-
-  // aggregate synced status
-  const metadataSynced = metadata.length > 0 ?? false;
-
-  // pool display name
-  const display = determinePoolDisplay(addresses.stash, metadata[batchIndex]);
+  const display = determinePoolDisplay(
+    addresses.stash,
+    poolsMetaData[Number(id)]
+  );
 
   return (
     <IdentityWrapper className="identity">
-      <Identicon value={addresses.stash} size={26} />
+      <Polkicon address={addresses.stash} size="2rem" />
       <div className="inner">
         {!metadataSynced ? (
-          <h4>{clipAddress(addresses.stash)}</h4>
+          <h4>{ellipsisFn(addresses.stash)}</h4>
         ) : (
           <h4>{display}</h4>
         )}

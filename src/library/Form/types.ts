@@ -1,11 +1,13 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import BN from 'bn.js';
-import { Balance } from 'contexts/Balances/types';
-import { ExternalAccount } from 'contexts/Connect/types';
-import { ExtensionAccount } from 'contexts/Extensions/types';
-import { BondFor } from 'types';
+import type BigNumber from 'bignumber.js';
+import type { Balance } from 'contexts/Balances/types';
+import type {
+  ExtensionAccount,
+  ExternalAccount,
+} from '@polkadot-cloud/react/types';
+import type { BondFor, MaybeAddress } from 'types';
 
 export interface ExtensionAccountItem extends ExtensionAccount {
   active?: boolean;
@@ -27,19 +29,8 @@ export interface DropdownInput {
 }
 
 export interface AccountDropdownProps {
-  items: Array<InputItem>;
-  onChange: (o: any) => void;
-  placeholder: string;
-  value: InputItem;
   current: InputItem;
-  height: string | number | undefined;
-}
-
-export interface AccountSelectProps {
-  items: Array<InputItem>;
-  onChange: (o: any) => void;
-  placeholder: string;
-  value: InputItem;
+  to: MaybeAddress;
 }
 
 export interface BondFeedbackProps {
@@ -48,16 +39,17 @@ export interface BondFeedbackProps {
   bondFor: BondFor;
   defaultBond: number | null;
   inSetup?: boolean;
-  listenIsValid: { (v: boolean): void } | { (): void };
-  warnings?: string[];
+  joiningPool?: boolean;
+  listenIsValid: { (valid: boolean, errors: string[]): void } | { (): void };
+  parentErrors?: string[];
   disableTxFeeUpdate?: boolean;
   setLocalResize?: () => void;
-  txFees: BN;
+  txFees: BigNumber;
   maxWidth?: boolean;
 }
 
 export interface BondInputProps {
-  freeBalance: number;
+  freeToBond: BigNumber;
   value: string;
   defaultValue: string;
   syncing?: boolean;
@@ -71,15 +63,15 @@ export interface UnbondFeedbackProps {
   bondFor: BondFor;
   defaultBond?: number;
   inSetup?: boolean;
-  listenIsValid: { (v: boolean): void } | { (): void };
-  warnings?: string[];
+  listenIsValid: { (valid: boolean, errors: string[]): void } | { (): void };
+  parentErrors?: string[];
   setLocalResize?: () => void;
-  txFees: BN;
+  txFees: BigNumber;
 }
 
 export interface UnbondInputProps {
-  active: BN;
-  unbondToMin: BN;
+  active: BigNumber;
+  unbondToMin: BigNumber;
   defaultValue: number | string;
   disabled: boolean;
   setters: any;
@@ -87,11 +79,11 @@ export interface UnbondInputProps {
 }
 
 export interface NominateStatusBarProps {
-  value: number;
+  value: BigNumber;
 }
 
 export interface DropdownProps {
-  items: Array<DropdownInput>;
+  items: DropdownInput[];
   onChange: (o: any) => void;
   label?: string;
   placeholder: string;

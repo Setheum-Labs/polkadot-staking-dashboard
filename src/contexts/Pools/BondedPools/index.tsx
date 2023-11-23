@@ -1,99 +1,115 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { u8aToString, u8aUnwrapBytes } from '@polkadot/util';
-import {
+import { rmCommas, shuffle } from '@polkadot-cloud/utils';
+import React, { useRef, useState } from 'react';
+import type {
   BondedPool,
   BondedPoolsContextState,
   MaybePool,
   NominationStatuses,
+  PoolNominations,
 } from 'contexts/Pools/types';
 import { useStaking } from 'contexts/Staking';
-import React, { useEffect, useRef, useState } from 'react';
-import { AnyApi, AnyMetaBatch, Fn, MaybeAccount } from 'types';
-import { setStateWithRef, shuffle } from 'Utils';
+import type { AnyApi, MaybeAddress, Sync } from 'types';
+import { useEffectIgnoreInitial } from '@polkadot-cloud/react/hooks';
+import { useNetwork } from 'contexts/Network';
+import { useNetworkMetrics } from 'contexts/NetworkMetrics';
+import type { AnyJson } from '@polkadot-cloud/react/types';
 import { useApi } from '../../Api';
 import { usePoolsConfig } from '../PoolsConfig';
 import { defaultBondedPoolsContext } from './defaults';
-
-export const BondedPoolsContext = React.createContext<BondedPoolsContextState>(
-  defaultBondedPoolsContext
-);
-
-export const useBondedPools = () => React.useContext(BondedPoolsContext);
 
 export const BondedPoolsProvider = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
-  const { api, network, isReady } = useApi();
-  const { getNominationsStatusFromTargets } = useStaking();
+  const { network } = useNetwork();
+  const { api, isReady } = useApi();
+  const { activeEra } = useNetworkMetrics();
   const { createAccounts, stats } = usePoolsConfig();
+  const { getNominationsStatusFromTargets } = useStaking();
   const { lastPoolId } = stats;
 
-  // stores the meta data batches for pool lists
-  const [poolMetaBatches, setPoolMetaBatch]: AnyMetaBatch = useState({});
-  const poolMetaBatchesRef = useRef(poolMetaBatches);
+  // Store bonded pools.
+  const [bondedPools, setBondedPools] = useState<BondedPool[]>([]);
 
-  // stores the meta batch subscriptions for pool lists
-  const [poolSubs, setPoolSubs] = useState<{
-    [key: string]: Array<Fn>;
-  }>({});
-  const poolSubsRef = useRef(poolSubs);
+  // Track the sync status of `bondedPools`.
+  const bondedPoolsSynced = useRef<Sync>('unsynced');
 
-  // store bonded pools
-  const [bondedPools, setBondedPools] = useState<Array<BondedPool>>([]);
+  // Store bonded pools metadata.
+  const [poolsMetaData, setPoolsMetadata] = useState<Record<number, string>>(
+    {}
+  );
 
-  // clear existing state for network refresh
-  useEffect(() => {
-    setBondedPools([]);
-    setStateWithRef({}, setPoolMetaBatch, poolMetaBatchesRef);
-  }, [network]);
+  // Store bonded pools nominations.
+  const [poolsNominations, setPoolsNominations] = useState<
+    Record<number, PoolNominations>
+  >({});
 
-  // initial setup for fetching bonded pools
-  useEffect(() => {
-    if (isReady) {
-      // fetch bonded pools
-      fetchBondedPools();
-    }
-    return () => {
-      unsubscribe();
-    };
-  }, [network, isReady, lastPoolId]);
-
-  // after bonded pools have synced, fetch metabatch
-  useEffect(() => {
-    if (bondedPools.length) {
-      fetchPoolsMetaBatch('bonded_pools', bondedPools, true);
-    }
-  }, [bondedPools]);
-
-  const unsubscribe = () => {
-    Object.values(poolSubsRef.current).map((batch: Array<Fn>) => {
-      return Object.entries(batch).map(([, v]) => {
-        return v();
-      });
-    });
-    setBondedPools([]);
-  };
-
-  // fetch all bonded pool entries
+  // Fetch all bonded pool entries and their metadata.
   const fetchBondedPools = async () => {
-    if (!api) return;
+    if (!api || bondedPoolsSynced.current !== 'unsynced') return;
+    bondedPoolsSynced.current = 'syncing';
 
-    const _exposures = await api.query.nominationPools.bondedPools.entries();
-    let exposures = _exposures.map(([_keys, _val]: AnyApi) => {
-      const id = _keys.toHuman()[0];
-      const pool = _val.toHuman();
-      return getPoolWithAddresses(id, pool);
+    const ids: number[] = [];
+
+    // Fetch bonded pools entries.
+    const bondedPoolsMulti =
+      await api.query.nominationPools.bondedPools.entries();
+    let exposures = bondedPoolsMulti.map(([keys, val]: AnyApi) => {
+      const id = keys.toHuman()[0];
+      ids.push(id);
+      return getPoolWithAddresses(id, val.toHuman());
     });
 
     exposures = shuffle(exposures);
     setBondedPools(exposures);
+
+    // Fetch pools metadata.
+    const metadataMulti = await api.query.nominationPools.metadata.multi(ids);
+    setPoolsMetadata(
+      Object.fromEntries(
+        metadataMulti.map((m, i) => [ids[i], String(m.toHuman())])
+      )
+    );
+
+    bondedPoolsSynced.current = 'synced';
   };
 
-  // queries a bonded pool and injects ID and addresses to a result.
+  // Fetches pool nominations and updates state.
+  const fetchPoolsNominations = async () => {
+    if (!api) return;
+
+    const ids: number[] = [];
+    const nominationsMulti = await api.query.staking.nominators.multi(
+      bondedPools.map(({ addresses, id }) => {
+        ids.push(id);
+        return addresses.stash;
+      })
+    );
+    setPoolsNominations(formatPoolsNominations(nominationsMulti, ids));
+  };
+
+  // Format raw pool nominations data.
+  const formatPoolsNominations = (raw: AnyJson, ids: number[]) =>
+    Object.fromEntries(
+      raw.map((n: AnyJson, i: number) => {
+        const human = n.toHuman() as PoolNominations;
+        if (!human) return [ids[i], null];
+        return [
+          ids[i],
+          {
+            ...human,
+            submittedIn: rmCommas(human.submittedIn),
+          },
+        ];
+      })
+    );
+
+  // Queries a bonded pool and injects ID and addresses to a result.
   const queryBondedPool = async (id: number) => {
     if (!api) return null;
 
@@ -111,142 +127,23 @@ export const BondedPoolsProvider = ({
     };
   };
 
-  /*
-    Fetches a new batch of pool metadata.
-    Fetches the metadata of a pool that we assume to be a string.
-    structure:
-    {
-      key: {
-        [
-          {
-          metadata: [],
-        }
-      ]
-    },
-  };
-  */
-  const fetchPoolsMetaBatch = async (
-    key: string,
-    p: AnyMetaBatch,
-    refetch = false
-  ) => {
-    if (!isReady || !api) {
-      return;
-    }
-    if (!p.length) {
-      return;
-    }
-    if (!refetch) {
-      // if already exists, do not re-fetch
-      if (poolMetaBatchesRef.current[key] !== undefined) {
-        return;
-      }
-    } else {
-      // tidy up if existing batch exists
-      delete poolMetaBatches[key];
-      delete poolMetaBatchesRef.current[key];
-
-      if (poolSubsRef.current[key] !== undefined) {
-        for (const unsub of poolSubsRef.current[key]) {
-          unsub();
-        }
-      }
-    }
-
-    // aggregate pool ids and addresses
-    const ids = [];
-    const addresses = [];
-    for (const _p of p) {
-      ids.push(Number(_p.id));
-
-      if (_p?.addresses?.stash) {
-        addresses.push(_p.addresses.stash);
-      }
-    }
-
-    // store batch ids
-    const batchesUpdated = Object.assign(poolMetaBatchesRef.current);
-    batchesUpdated[key] = {};
-    batchesUpdated[key].ids = ids;
-    setStateWithRef(
-      { ...batchesUpdated },
-      setPoolMetaBatch,
-      poolMetaBatchesRef
-    );
-
-    const subscribeToMetadata = async (_ids: AnyApi) => {
-      const unsub = await api.query.nominationPools.metadata.multi(
-        _ids,
-        (_metadata: AnyApi) => {
-          const metadata = [];
-          for (let i = 0; i < _metadata.length; i++) {
-            metadata.push(_metadata[i].toHuman());
-          }
-          const _batchesUpdated = Object.assign(poolMetaBatchesRef.current);
-          _batchesUpdated[key].metadata = metadata;
-
-          setStateWithRef(
-            { ..._batchesUpdated },
-            setPoolMetaBatch,
-            poolMetaBatchesRef
-          );
-        }
-      );
-      return unsub;
-    };
-
-    const subscribeToNominations = async (_addresses: AnyApi) => {
-      const unsub = await api.query.staking.nominators.multi(
-        _addresses,
-        (_nominations: AnyApi) => {
-          const nominations = [];
-          for (let i = 0; i < _nominations.length; i++) {
-            nominations.push(_nominations[i].toHuman());
-          }
-          const _batchesUpdated = Object.assign(poolMetaBatchesRef.current);
-          _batchesUpdated[key].nominations = nominations;
-          setStateWithRef(
-            { ..._batchesUpdated },
-            setPoolMetaBatch,
-            poolMetaBatchesRef
-          );
-        }
-      );
-      return unsub;
-    };
-
-    // initiate subscriptions
-    await Promise.all([
-      subscribeToMetadata(ids),
-      subscribeToNominations(addresses),
-    ]).then((unsubs: Array<Fn>) => {
-      addMetaBatchUnsubs(key, unsubs);
-    });
-  };
-
-  /*
-   * Get bonded pool nomination statuses
-   */
+  // Get bonded pool nomination statuses
   const getPoolNominationStatus = (
-    nominator: MaybeAccount,
-    nomination: MaybeAccount
+    nominator: MaybeAddress,
+    nomination: MaybeAddress
   ) => {
     const pool = bondedPools.find((p: any) => p.addresses.stash === nominator);
 
-    if (!pool) {
-      return 'waiting';
-    }
-    // get pool targets from nominations metadata
-    const batchIndex = bondedPools.indexOf(pool);
-    const nominations = poolMetaBatches.bonded_pools?.nominations ?? [];
-    const targets = nominations[batchIndex]?.targets ?? [];
+    if (!pool) return 'waiting';
 
-    const target = targets.find((t: string) => t === nomination);
+    // get pool targets from nominations metadata
+    const nominations = poolsNominations[pool.id];
+    const targets = nominations ? nominations.targets : [];
+    const target = targets.find((t) => t === nomination);
 
     const nominationStatus = getNominationsStatusFromTargets(nominator, [
       target,
     ]);
-
     return getPoolNominationStatusCode(nominationStatus);
   };
 
@@ -257,12 +154,12 @@ export const BondedPoolsProvider = ({
     let status = 'waiting';
 
     if (statuses) {
-      for (const _status of Object.values(statuses)) {
-        if (_status === 'active') {
+      for (const childStatus of Object.values(statuses)) {
+        if (childStatus === 'active') {
           status = 'active';
           break;
         }
-        if (_status === 'inactive') {
+        if (childStatus === 'inactive') {
           status = 'inactive';
         }
       }
@@ -271,107 +168,75 @@ export const BondedPoolsProvider = ({
   };
 
   /*
-   * Helper: to add mataBatch unsubs by key.
-   */
-  const addMetaBatchUnsubs = (key: string, unsubs: Array<Fn>) => {
-    const _unsubs = poolSubsRef.current;
-    const _keyUnsubs = _unsubs[key] ?? [];
-
-    _keyUnsubs.push(...unsubs);
-    _unsubs[key] = _keyUnsubs;
-    setStateWithRef(_unsubs, setPoolSubs, poolSubsRef);
-  };
-
-  /*
    *  Helper: to add addresses to pool record.
    */
-  const getPoolWithAddresses = (id: number, pool: BondedPool) => {
-    return {
-      ...pool,
-      id,
-      addresses: createAccounts(id),
-    };
-  };
+  const getPoolWithAddresses = (id: number, pool: BondedPool) => ({
+    ...pool,
+    id,
+    addresses: createAccounts(id),
+  });
 
-  const getBondedPool = (poolId: MaybePool) => {
-    const pool = bondedPools.find((p: BondedPool) => p.id === poolId) ?? null;
-    return pool;
-  };
+  const getBondedPool = (poolId: MaybePool) =>
+    bondedPools.find((p) => p.id === poolId) ?? null;
 
   /*
-   * poolSearchFilter
-   * Iterates through the supplied list and refers to the meta
-   * batch of the list to filter those list items that match
-   * the search term.
-   * Returns the updated filtered list.
+   * poolSearchFilter Iterates through the supplied list and refers to the meta batch of the list to
+   * filter those list items that match the search term. Returns the updated filtered list.
    */
-  const poolSearchFilter = (
-    list: any,
-    batchKey: string,
-    searchTerm: string
-  ) => {
-    const meta = poolMetaBatchesRef.current;
-
-    if (meta[batchKey] === undefined) {
-      return list;
-    }
+  const poolSearchFilter = (list: any, searchTerm: string) => {
     const filteredList: any = [];
 
     for (const pool of list) {
-      const batchIndex = meta[batchKey].ids?.indexOf(Number(pool.id)) ?? -1;
-
-      // if we cannot derive data, fallback to include pool in filtered list
-      if (batchIndex === -1) {
+      // If pool metadata has not yet been synced, include the pool in results.
+      if (!Object.values(poolsMetaData).length) {
         filteredList.push(pool);
         continue;
       }
 
-      const ids = meta[batchKey].ids ?? false;
-      const metadatas = meta[batchKey]?.metadata ?? false;
-
-      if (!metadatas || !ids) {
-        filteredList.push(pool);
-        continue;
-      }
-
-      const id = ids[batchIndex] ?? 0;
       const address = pool?.addresses?.stash ?? '';
-      const metadata = metadatas[batchIndex] ?? '';
-
+      const metadata = poolsMetaData[pool.id] || '';
       const metadataAsBytes = u8aToString(u8aUnwrapBytes(metadata));
       const metadataSearch = (
         metadataAsBytes === '' ? metadata : metadataAsBytes
       ).toLowerCase();
 
-      if (String(id).includes(searchTerm.toLowerCase())) {
+      if (pool.id.includes(searchTerm.toLowerCase())) filteredList.push(pool);
+      if (address.toLowerCase().includes(searchTerm.toLowerCase()))
         filteredList.push(pool);
-      }
-      if (address.toLowerCase().includes(searchTerm.toLowerCase())) {
+      if (metadataSearch.includes(searchTerm.toLowerCase()))
         filteredList.push(pool);
-      }
-      if (metadataSearch.includes(searchTerm.toLowerCase())) {
-        filteredList.push(pool);
-      }
     }
     return filteredList;
   };
 
-  const updateBondedPools = (updatedPools: Array<BondedPool>) => {
-    if (!updatedPools) {
-      return;
-    }
-    const _bondedPools = bondedPools.map(
-      (original: BondedPool) =>
-        updatedPools.find(
-          (updated: BondedPool) => updated.id === original.id
-        ) || original
+  const updateBondedPools = (updatedPools: BondedPool[]) => {
+    if (!updatedPools) return;
+    setBondedPools(
+      bondedPools.map(
+        (original) =>
+          updatedPools.find((updated) => updated.id === original.id) || original
+      )
     );
-    setBondedPools(_bondedPools);
+  };
+
+  const updatePoolNominations = (id: number, newTargets: string[]) => {
+    const newPoolsNominations = { ...poolsNominations };
+
+    let record = newPoolsNominations?.[id];
+    if (record !== null) {
+      record.targets = newTargets;
+    } else {
+      record = {
+        submittedIn: activeEra.index.toString(),
+        targets: newTargets,
+        suppressed: false,
+      };
+    }
+    setPoolsNominations(newPoolsNominations);
   };
 
   const removeFromBondedPools = (id: number) => {
-    const _bondedPools = bondedPools.filter((b: BondedPool) => b.id !== id);
-    setBondedPools(_bondedPools);
+    setBondedPools(bondedPools.filter((b: BondedPool) => b.id !== id));
   };
 
   // adds a record to bondedPools.
@@ -379,59 +244,55 @@ export const BondedPoolsProvider = ({
   const addToBondedPools = (pool: BondedPool) => {
     if (!pool) return;
 
-    const exists = bondedPools.find((b: BondedPool) => b.id === pool.id);
-    if (!exists) {
-      const _bondedPools = bondedPools.concat(pool);
-      setBondedPools(_bondedPools);
-    }
+    const exists = bondedPools.find((b) => b.id === pool.id);
+    if (!exists) setBondedPools(bondedPools.concat(pool));
   };
 
   // get all the roles belonging to one pool account
-  const getAccountRoles = (who: MaybeAccount) => {
+  const getAccountRoles = (who: MaybeAddress) => {
     if (!who) {
       return {
         depositor: [],
         root: [],
         nominator: [],
-        stateToggler: [],
+        bouncer: [],
       };
     }
 
     const depositor = bondedPools
-      .filter((b: BondedPool) => b.roles.depositor === who)
-      .map((b: BondedPool) => b.id);
+      .filter((b) => b.roles.depositor === who)
+      .map((b) => b.id);
 
     const root = bondedPools
       .filter((b: BondedPool) => b.roles.root === who)
-      .map((b: BondedPool) => b.id);
+      .map((b) => b.id);
 
     const nominator = bondedPools
-      .filter((b: BondedPool) => b.roles.nominator === who)
-      .map((b: BondedPool) => b.id);
+      .filter((b) => b.roles.nominator === who)
+      .map((b) => b.id);
 
-    const stateToggler = bondedPools
-      .filter((b: BondedPool) => b.roles.stateToggler === who)
-      .map((b: BondedPool) => b.id);
+    const bouncer = bondedPools
+      .filter((b) => b.roles.bouncer === who)
+      .map((b) => b.id);
 
     return {
       depositor,
       root,
       nominator,
-      stateToggler,
+      bouncer,
     };
   };
 
   // accumulate account pool list
-  const getAccountPools = (who: MaybeAccount) => {
+  const getAccountPools = (who: MaybeAddress) => {
     // first get the roles of the account
     const roles = getAccountRoles(who);
-
     // format new list has pool => roles
     const pools: any = {};
     Object.entries(roles).forEach(([key, poolIds]: any) => {
       // now looping through a role
       poolIds.forEach((poolId: string) => {
-        const exists = Object.keys(pools).find((k: string) => k === poolId);
+        const exists = Object.keys(pools).find((k) => k === poolId);
         if (!exists) {
           pools[poolId] = [key];
         } else {
@@ -446,20 +307,18 @@ export const BondedPoolsProvider = ({
   const toReplace = (roleEdits: any) => {
     const root = roleEdits?.root?.newAddress ?? '';
     const nominator = roleEdits?.nominator?.newAddress ?? '';
-    const stateToggler = roleEdits?.stateToggler?.newAddress ?? '';
+    const bouncer = roleEdits?.bouncer?.newAddress ?? '';
 
     return {
       root,
       nominator,
-      stateToggler,
+      bouncer,
     };
   };
 
   // replaces the pool roles from roleEdits
   const replacePoolRoles = (poolId: number, roleEdits: any) => {
-    let pool =
-      bondedPools.find((b: BondedPool) => String(b.id) === String(poolId)) ||
-      null;
+    let pool = bondedPools.find((b) => b.id === poolId) || null;
 
     if (!pool) return;
 
@@ -472,18 +331,35 @@ export const BondedPoolsProvider = ({
     };
 
     const newBondedPools = [
-      ...bondedPools.map((b: BondedPool) =>
-        String(b.id) === String(poolId) && pool !== null ? pool : b
-      ),
+      ...bondedPools.map((b) => (b.id === poolId && pool !== null ? pool : b)),
     ];
 
     setBondedPools(newBondedPools);
   };
 
+  // Clear existing state for network refresh.
+  useEffectIgnoreInitial(() => {
+    bondedPoolsSynced.current = 'unsynced';
+    setBondedPools([]);
+    setPoolsMetadata({});
+    setPoolsNominations({});
+  }, [network]);
+
+  // Initial setup for fetching bonded pools.
+  useEffectIgnoreInitial(() => {
+    if (isReady && lastPoolId) fetchBondedPools();
+  }, [bondedPools, isReady, lastPoolId]);
+
+  // Re-fetch bonded pools nominations when active era changes or when `bondedPools` update.
+  useEffectIgnoreInitial(() => {
+    if (!activeEra.index.isZero() && bondedPools.length) {
+      fetchPoolsNominations();
+    }
+  }, [activeEra.index, bondedPools.length]);
+
   return (
     <BondedPoolsContext.Provider
       value={{
-        fetchPoolsMetaBatch,
         queryBondedPool,
         getBondedPool,
         updateBondedPools,
@@ -496,10 +372,18 @@ export const BondedPoolsProvider = ({
         replacePoolRoles,
         poolSearchFilter,
         bondedPools,
-        meta: poolMetaBatchesRef.current,
+        poolsMetaData,
+        poolsNominations,
+        updatePoolNominations,
       }}
     >
       {children}
     </BondedPoolsContext.Provider>
   );
 };
+
+export const BondedPoolsContext = React.createContext<BondedPoolsContextState>(
+  defaultBondedPoolsContext
+);
+
+export const useBondedPools = () => React.useContext(BondedPoolsContext);

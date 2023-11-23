@@ -1,28 +1,30 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useNetworkMetrics } from 'contexts/Network';
-import useInflation from 'library/Hooks/useInflation';
-import { Text } from 'library/StatBoxList/Text';
+import BigNumber from 'bignumber.js';
 import { useTranslation } from 'react-i18next';
-import { toFixedIfNecessary } from 'Utils';
+import { useNetworkMetrics } from 'contexts/NetworkMetrics';
+import { useInflation } from 'library/Hooks/useInflation';
+import { Text } from 'library/StatBoxList/Text';
 
-export const HistoricalRewardsRateStatBox = () => {
+export const HistoricalRewardsRateStat = () => {
   const { t } = useTranslation('pages');
   const { metrics } = useNetworkMetrics();
   const { inflation, stakedReturn } = useInflation();
   const { totalIssuance } = metrics;
 
   const value = `${
-    totalIssuance.toString() === '0' ? '0' : toFixedIfNecessary(stakedReturn, 2)
+    totalIssuance.isZero()
+      ? '0'
+      : new BigNumber(stakedReturn).decimalPlaces(2).toFormat()
   }%`;
 
   const secondaryValue =
-    totalIssuance.toString() === '0' || stakedReturn === 0
+    totalIssuance.isZero() || stakedReturn === 0
       ? undefined
-      : `/ ${toFixedIfNecessary(Math.max(0, stakedReturn - inflation), 2)}% ${t(
-          'overview.afterInflation'
-        )}`;
+      : `/ ${new BigNumber(Math.max(0, stakedReturn - inflation))
+          .decimalPlaces(2)
+          .toFormat()}% ${t('overview.afterInflation')}`;
 
   const params = {
     label: t('overview.historicalRewardsRate'),
@@ -34,5 +36,3 @@ export const HistoricalRewardsRateStatBox = () => {
 
   return <Text {...params} />;
 };
-
-export default HistoricalRewardsRateStatBox;

@@ -1,114 +1,74 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { BN } from 'bn.js';
-import { MaxPayoutDays } from 'consts';
-import { usePlugins } from 'contexts/Plugins';
-import { useStaking } from 'contexts/Staking';
-import { useSubscan } from 'contexts/Subscan';
-import { useUi } from 'contexts/UI';
-import { format, fromUnixTime } from 'date-fns';
-import { PayoutBar } from 'library/Graphs/PayoutBar';
-import { PayoutLine } from 'library/Graphs/PayoutLine';
-import { formatSize } from 'library/Graphs/Utils';
-import {
-  CardHeaderWrapper,
-  CardWrapper,
-  GraphWrapper,
-} from 'library/Graphs/Wrappers';
-import { useSize } from 'library/Hooks/useSize';
-import { OpenHelpIcon } from 'library/OpenHelpIcon';
-import { PageTitle } from 'library/PageTitle';
-import { StatBoxList } from 'library/StatBoxList';
-import { StatusLabel } from 'library/StatusLabel';
-import { SubscanButton } from 'library/SubscanButton';
-import { locales } from 'locale';
+import { ButtonHelp, PageRow, PageTitle } from '@polkadot-cloud/react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AnySubscan } from 'types';
-import { PageRowWrapper } from 'Wrappers';
-import { PageProps } from '../types';
+import { MaxPayoutDays } from 'consts';
+import { useHelp } from 'contexts/Help';
+import { usePlugins } from 'contexts/Plugins';
+import { useStaking } from 'contexts/Staking';
+import { useSubscan } from 'contexts/Plugins/Subscan';
+import { useUi } from 'contexts/UI';
+import { CardHeaderWrapper, CardWrapper } from 'library/Card/Wrappers';
+import { PayoutBar } from 'library/Graphs/PayoutBar';
+import { PayoutLine } from 'library/Graphs/PayoutLine';
+import { formatSize, sortNonZeroPayouts } from 'library/Graphs/Utils';
+import { GraphWrapper } from 'library/Graphs/Wrapper';
+import { useSize } from 'library/Hooks/useSize';
+import { StatBoxList } from 'library/StatBoxList';
+import { StatusLabel } from 'library/StatusLabel';
+import type { AnySubscan, PageProps } from 'types';
+import { PluginLabel } from 'library/PluginLabel';
 import { PayoutList } from './PayoutList';
-import LastEraPayoutStatBox from './Stats/LastEraPayout';
+import { LastEraPayoutStat } from './Stats/LastEraPayout';
 
-export const Payouts = (props: PageProps) => {
-  const { payouts, poolClaims } = useSubscan();
+export const Payouts = ({ page }: PageProps) => {
+  const { t } = useTranslation();
+  const { payouts, poolClaims, payoutsFromDate, payoutsToDate } = useSubscan();
   const { isSyncing } = useUi();
   const { plugins } = usePlugins();
   const { inSetup } = useStaking();
   const notStaking = !isSyncing && inSetup();
-  const { i18n, t } = useTranslation();
+  const { openHelp } = useHelp();
 
-  const [payoutsList, setPayoutLists] = useState<AnySubscan>();
-  const [fromDate, setFromDate] = useState<string | undefined>();
-  const [toDate, setToDate] = useState<string | undefined>();
+  const [payoutsList, setPayoutLists] = useState<AnySubscan>([]);
 
-  const { page } = props;
   const { key } = page;
 
   const ref = useRef<HTMLDivElement>(null);
   const size = useSize(ref.current);
-  const { width, height, minHeight } = formatSize(size, 300);
+  const { width, height, minHeight } = formatSize(size, 280);
 
   useEffect(() => {
-    // take non-zero rewards in most-recent order
-    let pList: AnySubscan = [
-      ...payouts.concat(poolClaims).filter((p: AnySubscan) => p.amount > 0),
-    ].slice(0, MaxPayoutDays);
-
-    // re-order rewards based on block timestamp
-    pList = pList.sort((a: AnySubscan, b: AnySubscan) => {
-      const x = new BN(a.block_timestamp);
-      const y = new BN(b.block_timestamp);
-      return y.sub(x);
-    });
-    setPayoutLists(pList);
-  }, [payouts]);
-
-  useEffect(() => {
-    // calculate the earliest and latest payout dates if they exist.
-    if (payoutsList?.length) {
-      setFromDate(
-        format(
-          fromUnixTime(
-            payoutsList[Math.min(MaxPayoutDays - 2, payoutsList.length - 1)]
-              .block_timestamp
-          ),
-          'do MMM',
-          {
-            locale: locales[i18n.resolvedLanguage],
-          }
-        )
-      );
-
-      // latest payout date
-      setToDate(
-        format(fromUnixTime(payoutsList[0].block_timestamp), 'do MMM', {
-          locale: locales[i18n.resolvedLanguage],
-        })
-      );
-    }
-  }, [payoutsList?.length]);
+    // filter zero rewards and order via block timestamp, most recent first.
+    setPayoutLists(sortNonZeroPayouts(payouts, poolClaims, true));
+  }, [payouts, poolClaims]);
 
   return (
     <>
       <PageTitle title={t(key, { ns: 'base' })} />
       <StatBoxList>
-        <LastEraPayoutStatBox />
+        <LastEraPayoutStat />
       </StatBoxList>
-      <PageRowWrapper className="page-padding" noVerticalSpacer>
-        <GraphWrapper>
-          <SubscanButton />
-          <CardHeaderWrapper padded>
+      <PageRow>
+        <CardWrapper>
+          <PluginLabel plugin="subscan" />
+          <CardHeaderWrapper>
             <h4>
               {t('payouts.payoutHistory', { ns: 'pages' })}
-              <OpenHelpIcon helpKey="Payout History" />
+              <ButtonHelp
+                marginLeft
+                onClick={() => openHelp('Payout History')}
+              />
             </h4>
             <h2>
-              {payouts.length ? (
+              {payoutsFromDate && payoutsToDate ? (
                 <>
-                  {fromDate}
-                  {toDate !== fromDate && <>&nbsp;-&nbsp;{toDate}</>}
+                  {payoutsFromDate}
+                  {payoutsToDate !== payoutsFromDate && (
+                    <>&nbsp;-&nbsp;{payoutsToDate}</>
+                  )}
                 </>
               ) : (
                 t('payouts.none', { ns: 'pages' })
@@ -131,8 +91,7 @@ export const Payouts = (props: PageProps) => {
               />
             )}
 
-            <div
-              className="graph"
+            <GraphWrapper
               style={{
                 height: `${height}px`,
                 width: `${width}px`,
@@ -143,14 +102,14 @@ export const Payouts = (props: PageProps) => {
             >
               <PayoutBar days={MaxPayoutDays} height="165px" />
               <PayoutLine days={MaxPayoutDays} average={10} height="65px" />
-            </div>
+            </GraphWrapper>
           </div>
-        </GraphWrapper>
-      </PageRowWrapper>
+        </CardWrapper>
+      </PageRow>
       {!payoutsList?.length ? (
         <></>
       ) : (
-        <PageRowWrapper className="page-padding" noVerticalSpacer>
+        <PageRow>
           <CardWrapper>
             <PayoutList
               title={t('payouts.recentPayouts', { ns: 'pages' })}
@@ -158,10 +117,8 @@ export const Payouts = (props: PageProps) => {
               pagination
             />
           </CardWrapper>
-        </PageRowWrapper>
+        </PageRow>
       )}
     </>
   );
 };
-
-export default Payouts;

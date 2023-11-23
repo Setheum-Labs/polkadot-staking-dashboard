@@ -1,45 +1,43 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { faBolt, faLockOpen } from '@fortawesome/free-solid-svg-icons';
-import { ButtonPrimary } from '@rossbulat/polkadot-dashboard-ui';
-import { useApi } from 'contexts/Api';
-import { useConnect } from 'contexts/Connect';
-import { useModal } from 'contexts/Modal';
+import { ButtonPrimary, ButtonRow, PageRow } from '@polkadot-cloud/react';
+import { isNotZero } from '@polkadot-cloud/utils';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'contexts/Themes';
 import { useTransferOptions } from 'contexts/TransferOptions';
 import { useUi } from 'contexts/UI';
-import { CardWrapper } from 'library/Graphs/Wrappers';
-import useUnstaking from 'library/Hooks/useUnstaking';
-import { useTranslation } from 'react-i18next';
-import { ButtonRowWrapper, PageRowWrapper } from 'Wrappers';
+import { CardWrapper } from 'library/Card/Wrappers';
+import { useUnstaking } from 'library/Hooks/useUnstaking';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { useNetwork } from 'contexts/Network';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
 export const UnstakePrompts = () => {
   const { t } = useTranslation('pages');
-  const { network } = useApi();
-  const { activeAccount } = useConnect();
+  const { unit, colors } = useNetwork().networkData;
+  const { activeAccount } = useActiveAccounts();
   const { mode } = useTheme();
-  const { openModalWith } = useModal();
-  const { networkSyncing } = useUi();
+  const { openModal } = useOverlay().modal;
+  const { isNetworkSyncing } = useUi();
   const { isFastUnstaking, isUnstaking, getFastUnstakeText } = useUnstaking();
   const { getTransferOptions } = useTransferOptions();
-  const { active, totalUnlockChuncks, totalUnlocked, totalUnlocking } =
+  const { active, totalUnlockChunks, totalUnlocked, totalUnlocking } =
     getTransferOptions(activeAccount).nominate;
-
-  const networkColorsSecondary: any = network.colors.secondary;
-  const annuncementBorderColor = networkColorsSecondary[mode];
+  const annuncementBorderColor = colors.secondary[mode];
 
   // unstaking can withdraw
   const canWithdrawUnlocks =
     isUnstaking &&
     active.isZero() &&
     totalUnlocking.isZero() &&
-    !totalUnlocked.isZero();
+    isNotZero(totalUnlocked);
 
   return (
     <>
-      {(isUnstaking || isFastUnstaking) && !networkSyncing && (
-        <PageRowWrapper className="page-padding" noVerticalSpacer>
+      {(isUnstaking || isFastUnstaking) && !isNetworkSyncing && (
+        <PageRow>
           <CardWrapper
             style={{ border: `1px solid ${annuncementBorderColor}` }}
           >
@@ -53,20 +51,20 @@ export const UnstakePrompts = () => {
                 {isFastUnstaking
                   ? t('nominate.unstakePromptInQueue')
                   : !canWithdrawUnlocks
-                  ? t('nominate.unstakePromptWaitingForUnlocks')
-                  : `${t('nominate.unstakePromptReadyToWithdraw')} ${t(
-                      'nominate.unstakePromptRevert',
-                      { unit: network.unit }
-                    )}`}
+                    ? t('nominate.unstakePromptWaitingForUnlocks')
+                    : `${t('nominate.unstakePromptReadyToWithdraw')} ${t(
+                        'nominate.unstakePromptRevert',
+                        { unit }
+                      )}`}
               </h4>
-              <ButtonRowWrapper verticalSpacing>
+              <ButtonRow yMargin>
                 {isFastUnstaking ? (
                   <ButtonPrimary
                     marginRight
                     iconLeft={faBolt}
                     text={getFastUnstakeText()}
                     onClick={() =>
-                      openModalWith('ManageFastUnstake', {}, 'small')
+                      openModal({ key: 'ManageFastUnstake', size: 'sm' })
                     }
                   />
                 ) : (
@@ -75,22 +73,27 @@ export const UnstakePrompts = () => {
                     text={
                       canWithdrawUnlocks
                         ? t('nominate.unlocked')
-                        : String(totalUnlockChuncks ?? 0)
+                        : String(totalUnlockChunks ?? 0)
                     }
                     disabled={false}
                     onClick={() =>
-                      openModalWith(
-                        'UnlockChunks',
-                        { bondFor: 'nominator', poolClosure: true },
-                        'small'
-                      )
+                      openModal({
+                        key: 'UnlockChunks',
+                        options: {
+                          bondFor: 'nominator',
+                          poolClosure: true,
+                          disableWindowResize: true,
+                          disableScroll: true,
+                        },
+                        size: 'sm',
+                      })
                     }
                   />
                 )}
-              </ButtonRowWrapper>
+              </ButtonRow>
             </div>
           </CardWrapper>
-        </PageRowWrapper>
+        </PageRow>
       )}
     </>
   );

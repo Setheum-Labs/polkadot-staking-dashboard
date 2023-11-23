@@ -1,14 +1,14 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { TimeLeftFormatted } from 'library/Hooks/useTimeLeft/types';
+import type { TimeLeftFormatted } from 'library/Hooks/useTimeLeft/types';
 
 export interface NumberProps {
   label: string;
-  value: string | number;
+  value: number;
+  decimals?: number;
   unit: string;
   helpKey: string;
-  currency?: string;
 }
 
 export interface PieProps {
@@ -16,7 +16,7 @@ export interface PieProps {
   stat: {
     value: string | number;
     unit: string | number;
-    total?: number;
+    total?: string | number;
   };
   graph: {
     value1: number;
@@ -45,4 +45,5 @@ export interface TimeleftProps {
   helpKey: string;
 }
 
-export type TimeLeftRaw = Array<Array<number | string>>;
+export type TimeLeftRaw = TimeLeftRawItem[];
+export type TimeLeftRawItem = Array<number | string>;

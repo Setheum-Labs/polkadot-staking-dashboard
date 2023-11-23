@@ -1,59 +1,33 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { BN } from 'bn.js';
-import { useApi } from 'contexts/Api';
+import { capitalizeFirstLetter, planckToUnit } from '@polkadot-cloud/utils';
+import { useTranslation } from 'react-i18next';
 import { useStaking } from 'contexts/Staking';
 import { useUi } from 'contexts/UI';
 import { ValidatorStatusWrapper } from 'library/ListItem/Wrappers';
-import { useTranslation } from 'react-i18next';
-import { capitalizeFirstLetter, humanNumber, rmCommas } from 'Utils';
+import { useNetwork } from 'contexts/Network';
+import type { EraStatusProps } from '../types';
 
-export const EraStatus = (props: any) => {
-  const { address } = props;
-
-  const {
-    network: { unit, units },
-  } = useApi();
-  const { isSyncing } = useUi();
-  const { eraStakers, erasStakersSyncing } = useStaking();
-  const { stakers } = eraStakers;
+export const EraStatus = ({ noMargin, status, totalStake }: EraStatusProps) => {
   const { t } = useTranslation('library');
+  const { isSyncing } = useUi();
+  const { erasStakersSyncing } = useStaking();
+  const { unit, units } = useNetwork().networkData;
 
-  // is the validator in the active era
-  const validatorInEra =
-    stakers.find((s: any) => s.address === address) || null;
-
-  // flag whether validator is active
-  const validatorStatus = isSyncing
-    ? 'waiting'
-    : validatorInEra
-    ? 'active'
-    : 'waiting';
-
-  let totalStakePlanck = new BN(0);
-  if (validatorInEra) {
-    const { others, own } = validatorInEra;
-    others.forEach((o: any) => {
-      totalStakePlanck = totalStakePlanck.add(new BN(rmCommas(o.value)));
-    });
-    if (own) {
-      totalStakePlanck = totalStakePlanck.add(new BN(rmCommas(own)));
-    }
-  }
-
-  const totalStake = totalStakePlanck
-    .div(new BN(10).pow(new BN(units)))
-    .toNumber();
+  // Fallback to `waiting` status if still syncing.
+  const validatorStatus = isSyncing ? 'waiting' : status;
 
   return (
-    <ValidatorStatusWrapper status={validatorStatus}>
+    <ValidatorStatusWrapper $status={validatorStatus} $noMargin={noMargin}>
       <h5>
         {isSyncing || erasStakersSyncing
           ? t('syncing')
-          : validatorInEra
-          ? `${t('listItemActive')} / ${humanNumber(totalStake)} ${unit}`
-          : capitalizeFirstLetter(t(`${validatorStatus}`) ?? '')}
+          : validatorStatus !== 'waiting'
+            ? `${t('listItemActive')} / ${planckToUnit(totalStake, units)
+                .integerValue()
+                .toFormat()} ${unit}`
+            : capitalizeFirstLetter(t(`${validatorStatus}`) ?? '')}
       </h5>
     </ValidatorStatusWrapper>
   );

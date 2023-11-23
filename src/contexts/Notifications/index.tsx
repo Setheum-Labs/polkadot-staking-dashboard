@@ -1,28 +1,22 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
+import { setStateWithRef } from '@polkadot-cloud/utils';
+import type { ReactNode } from 'react';
 import React, { useRef, useState } from 'react';
-import { setStateWithRef } from 'Utils';
 import { defaultNotificationsContext } from './defaults';
-import {
+import type {
   NotificationInterface,
   NotificationItem,
   NotificationsContextInterface,
 } from './types';
 
-export const NotificationsContext =
-  React.createContext<NotificationsContextInterface>(
-    defaultNotificationsContext
-  );
-
-export const useNotifications = () => React.useContext(NotificationsContext);
-
 export const NotificationsProvider = ({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) => {
-  const [index, _setIndex] = useState(0);
+  const [index, setIndexState] = useState<number>(0);
   const [notifications, setNotifications] = useState<NotificationInterface[]>(
     []
   );
@@ -30,28 +24,28 @@ export const NotificationsProvider = ({
   const indexRef = useRef(index);
   const notificationsRef = useRef(notifications);
 
-  const setIndex = (_index: number) => {
-    indexRef.current = _index;
-    _setIndex(_index);
+  const setIndex = (i: number) => {
+    indexRef.current = i;
+    setIndexState(i);
   };
 
-  const addNotification = (_n: NotificationItem) => {
-    const _notifications: NotificationInterface[] = [
+  const addNotification = (newNotification: NotificationItem) => {
+    const newNotifications: NotificationInterface[] = [
       ...notificationsRef.current,
     ];
 
     const newIndex: number = indexRef.current + 1;
 
-    _notifications.push({
+    newNotifications.push({
       index: newIndex,
       item: {
-        ..._n,
+        ...newNotification,
         index: newIndex,
       },
     });
 
     setIndex(newIndex);
-    setStateWithRef(_notifications, setNotifications, notificationsRef);
+    setStateWithRef(newNotifications, setNotifications, notificationsRef);
     setTimeout(() => {
       removeNotification(newIndex);
     }, 3000);
@@ -59,11 +53,11 @@ export const NotificationsProvider = ({
     return newIndex;
   };
 
-  const removeNotification = (_index: number) => {
-    const _notifications = notificationsRef.current.filter(
-      (item: NotificationInterface) => item.index !== _index
+  const removeNotification = (i: number) => {
+    const newNotifications = notificationsRef.current.filter(
+      (item: NotificationInterface) => item.index !== i
     );
-    setStateWithRef(_notifications, setNotifications, notificationsRef);
+    setStateWithRef(newNotifications, setNotifications, notificationsRef);
   };
 
   return (
@@ -78,3 +72,10 @@ export const NotificationsProvider = ({
     </NotificationsContext.Provider>
   );
 };
+
+export const NotificationsContext =
+  React.createContext<NotificationsContextInterface>(
+    defaultNotificationsContext
+  );
+
+export const useNotifications = () => React.useContext(NotificationsContext);

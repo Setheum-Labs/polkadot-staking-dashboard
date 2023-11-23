@@ -1,13 +1,13 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
 import { faExternalLinkAlt } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useOverlay } from 'contexts/Overlay';
 import { useAnimationControls } from 'framer-motion';
-import { Tip } from 'library/Tips/Tip';
 import React, { useEffect, useState } from 'react';
-import { ItemInnerWrapper, ItemsWrapper, ItemWrapper } from './Wrappers';
+import { usePrompt } from 'contexts/Prompt';
+import { Tip } from 'library/Tips/Tip';
+import { ItemInnerWrapper, ItemWrapper, ItemsWrapper } from './Wrappers';
 
 export const ItemsInner = ({ items, page }: any) => {
   const controls = useAnimationControls();
@@ -60,8 +60,9 @@ const Item = ({
   index,
   controls,
   initial,
+  page,
 }: any) => {
-  const { openOverlayWith } = useOverlay();
+  const { openPromptWith } = usePrompt();
   const [isStopped, setIsStopped] = useState(true);
 
   useEffect(() => {
@@ -101,8 +102,8 @@ const Item = ({
           <div className="desc active">
             <button
               onClick={() =>
-                openOverlayWith(
-                  <Tip title={title} description={description} />,
+                openPromptWith(
+                  <Tip title={title} description={description} page={page} />,
                   'large'
                 )
               }
@@ -113,7 +114,6 @@ const Item = ({
                 <FontAwesomeIcon
                   icon={faExternalLinkAlt}
                   transform="shrink-2"
-                  className="more"
                 />
               </h4>
             </button>
@@ -133,5 +133,3 @@ export class Items extends React.Component<any, any> {
     return <ItemsInner {...this.props} />;
   }
 }
-
-export default Items;

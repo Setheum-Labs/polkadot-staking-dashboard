@@ -1,50 +1,70 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { faArrowAltCircleUp, faMinus } from '@fortawesome/free-solid-svg-icons';
-import { ButtonSubmit } from '@rossbulat/polkadot-dashboard-ui';
-import { BN } from 'bn.js';
+import { ModalNotes, ModalPadding, ModalWarnings } from '@polkadot-cloud/react';
+import { isNotZero, planckToUnit, unitToPlanck } from '@polkadot-cloud/utils';
+import BigNumber from 'bignumber.js';
+import { getUnixTime } from 'date-fns';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useApi } from 'contexts/Api';
-import { useBalances } from 'contexts/Balances';
-import { useConnect } from 'contexts/Connect';
-import { useModal } from 'contexts/Modal';
+import { useBonded } from 'contexts/Bonded';
 import { useActivePools } from 'contexts/Pools/ActivePools';
 import { usePoolsConfig } from 'contexts/Pools/PoolsConfig';
 import { useStaking } from 'contexts/Staking';
 import { useTransferOptions } from 'contexts/TransferOptions';
-import { useTxFees } from 'contexts/TxFees';
-import { EstimatedTxFee } from 'library/EstimatedTxFee';
+import { useTxMeta } from 'contexts/TxMeta';
 import { UnbondFeedback } from 'library/Form/Unbond/UnbondFeedback';
+import { Warning } from 'library/Form/Warning';
+import { useErasToTimeLeft } from 'library/Hooks/useErasToTimeLeft';
+import { useSignerWarnings } from 'library/Hooks/useSignerWarnings';
 import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
-import { Title } from 'library/Modal/Title';
-import { FooterWrapper, NotesWrapper, PaddingWrapper } from 'modals/Wrappers';
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { planckBnToUnit, unitToPlanckBn } from 'Utils';
+import { timeleftAsString } from 'library/Hooks/useTimeLeft/utils';
+import { Close } from 'library/Modal/Close';
+import { SubmitTx } from 'library/SubmitTx';
+import { StaticNote } from 'modals/Utils/StaticNote';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
+import { useNetwork } from 'contexts/Network';
+import { useActiveAccounts } from 'contexts/ActiveAccounts';
 
 export const Unbond = () => {
   const { t } = useTranslation('modals');
-  const { api, network, consts } = useApi();
-  const { units } = network;
-  const { setStatus: setModalStatus, setResize, config } = useModal();
-  const { activeAccount, accountHasSigner } = useConnect();
-  const { staking, getControllerNotImported } = useStaking();
-  const { getBondedAccount } = useBalances();
-  const { bondFor } = config;
+  const { txFees } = useTxMeta();
+  const { staking } = useStaking();
   const { stats } = usePoolsConfig();
-  const { isDepositor, selectedActivePool } = useActivePools();
-  const { txFees, txFeesValid } = useTxFees();
+  const { activeAccount } = useActiveAccounts();
+  const { notEnoughFunds } = useTxMeta();
+  const { getBondedAccount } = useBonded();
+  const { api, consts } = useApi();
+  const {
+    networkData: { units, unit },
+  } = useNetwork();
+  const { erasToSeconds } = useErasToTimeLeft();
+  const { getSignerWarnings } = useSignerWarnings();
   const { getTransferOptions } = useTransferOptions();
+  const { isDepositor, selectedActivePool } = useActivePools();
+  const {
+    setModalStatus,
+    setModalResize,
+    config: { options },
+  } = useOverlay().modal;
 
+  const { bondFor } = options;
   const controller = getBondedAccount(activeAccount);
-  const controllerNotImported = getControllerNotImported(controller);
   const { minNominatorBond: minNominatorBondBn } = staking;
   const { minJoinBond: minJoinBondBn, minCreateBond: minCreateBondBn } = stats;
   const { bondDuration } = consts;
 
-  let { unclaimedRewards } = selectedActivePool || {};
-  unclaimedRewards = unclaimedRewards ?? new BN(0);
-  unclaimedRewards = planckBnToUnit(unclaimedRewards, network.units);
+  const bondDurationFormatted = timeleftAsString(
+    t,
+    getUnixTime(new Date()) + 1,
+    erasToSeconds(bondDuration),
+    true
+  );
+
+  let { pendingRewards } = selectedActivePool || {};
+  pendingRewards = pendingRewards ?? new BigNumber(0);
+  pendingRewards = planckToUnit(pendingRewards, units);
 
   const isStaking = bondFor === 'nominator';
   const isPooling = bondFor === 'pool';
@@ -54,130 +74,138 @@ export const Unbond = () => {
     ? allTransferOptions.pool
     : allTransferOptions.nominate;
 
-  // convert BN values to number
-  const freeToUnbond = planckBnToUnit(activeBn, units);
-  const minJoinBond = planckBnToUnit(minJoinBondBn, units);
-  const minCreateBond = planckBnToUnit(minCreateBondBn, units);
-  const minNominatorBond = planckBnToUnit(minNominatorBondBn, units);
+  // convert BigNumber values to number
+  const freeToUnbond = planckToUnit(activeBn, units);
+  const minJoinBond = planckToUnit(minJoinBondBn, units);
+  const minCreateBond = planckToUnit(minCreateBondBn, units);
+  const minNominatorBond = planckToUnit(minNominatorBondBn, units);
 
   // local bond value
-  const [bond, setBond] = useState({ bond: freeToUnbond });
+  const [bond, setBond] = useState<{ bond: string }>({
+    bond: freeToUnbond.toString(),
+  });
 
   // bond valid
   const [bondValid, setBondValid] = useState<boolean>(false);
 
+  // feedback errors to trigger modal resize
+  const [feedbackErrors, setFeedbackErrors] = useState<string[]>([]);
+
   // get the max amount available to unbond
   const unbondToMin = isPooling
     ? isDepositor()
-      ? Math.max(freeToUnbond - minCreateBond, 0)
-      : Math.max(freeToUnbond - minJoinBond, 0)
-    : Math.max(freeToUnbond - minNominatorBond, 0);
-
-  // unbond some validation
-  const isValid = isPooling ? true : !controllerNotImported;
+      ? BigNumber.max(freeToUnbond.minus(minCreateBond), 0)
+      : BigNumber.max(freeToUnbond.minus(minJoinBond), 0)
+    : BigNumber.max(freeToUnbond.minus(minNominatorBond), 0);
 
   // update bond value on task change
   useEffect(() => {
-    const _bond = unbondToMin;
-    setBond({ bond: _bond });
-
-    setBondValid(isValid);
-  }, [unbondToMin, isValid]);
-
-  // modal resize on form update
-  useEffect(() => {
-    setResize();
-  }, [bond]);
+    setBond({ bond: unbondToMin.toString() });
+  }, [freeToUnbond.toString()]);
 
   // tx to submit
   const getTx = () => {
     let tx = null;
-    if (!bondValid || !api || !activeAccount) {
+    if (!api || !activeAccount) {
       return tx;
     }
-    // stake unbond: controller must be imported
-    if (isStaking && controllerNotImported) {
-      return tx;
-    }
-    // remove decimal errors
-    const bondToSubmit = unitToPlanckBn(String(bond.bond), units);
+
+    const bondToSubmit = unitToPlanck(!bondValid ? '0' : bond.bond, units);
+    const bondAsString = bondToSubmit.isNaN() ? '0' : bondToSubmit.toString();
 
     // determine tx
     if (isPooling) {
-      tx = api.tx.nominationPools.unbond(activeAccount, bondToSubmit);
+      tx = api.tx.nominationPools.unbond(activeAccount, bondAsString);
     } else if (isStaking) {
-      tx = api.tx.staking.unbond(bondToSubmit);
+      tx = api.tx.staking.unbond(bondAsString);
     }
     return tx;
   };
 
   const signingAccount = isPooling ? activeAccount : controller;
 
-  const { submitTx, submitting } = useSubmitExtrinsic({
+  const submitExtrinsic = useSubmitExtrinsic({
     tx: getTx(),
     from: signingAccount,
     shouldSubmit: bondValid,
     callbackSubmit: () => {
-      setModalStatus(2);
+      setModalStatus('closing');
     },
     callbackInBlock: () => {},
   });
 
   const nominatorActiveBelowMin =
     bondFor === 'nominator' &&
-    !activeBn.isZero() &&
-    activeBn.lt(minNominatorBondBn);
+    isNotZero(activeBn) &&
+    activeBn.isLessThan(minNominatorBondBn);
 
   const poolToMinBn = isDepositor() ? minCreateBondBn : minJoinBondBn;
-  const poolActiveBelowMin = bondFor === 'pool' && activeBn.lt(poolToMinBn);
+  const poolActiveBelowMin =
+    bondFor === 'pool' && activeBn.isLessThan(poolToMinBn);
 
-  const warnings = [];
-  if (!accountHasSigner(activeAccount)) {
-    warnings.push(t('readOnly'));
-  }
+  // accumulate warnings.
+  const warnings = getSignerWarnings(
+    activeAccount,
+    isStaking,
+    submitExtrinsic.proxySupported
+  );
 
-  if (unclaimedRewards > 0 && bondFor === 'pool') {
-    warnings.push(
-      `${t('unbondingWithdraw')} ${unclaimedRewards} ${network.unit}.`
-    );
+  if (pendingRewards > 0 && bondFor === 'pool') {
+    warnings.push(`${t('unbondingWithdraw')} ${pendingRewards} ${unit}.`);
   }
   if (nominatorActiveBelowMin) {
     warnings.push(
       t('unbondErrorBelowMinimum', {
         bond: minNominatorBond,
-        unit: network.unit,
+        unit,
       })
     );
   }
   if (poolActiveBelowMin) {
     warnings.push(
       t('unbondErrorBelowMinimum', {
-        bond: planckBnToUnit(poolToMinBn, units),
-        unit: network.unit,
+        bond: planckToUnit(poolToMinBn, units),
+        unit,
       })
     );
   }
   if (activeBn.isZero()) {
-    warnings.push(t('unbondErrorNoFunds', { unit: network.unit }));
+    warnings.push(t('unbondErrorNoFunds', { unit }));
   }
+
+  // modal resize on form update
+  useEffect(
+    () => setModalResize(),
+    [bond, notEnoughFunds, feedbackErrors.length, warnings.length]
+  );
 
   return (
     <>
-      <Title title={`${t('removeBond')}`} icon={faMinus} />
-      <PaddingWrapper>
+      <Close />
+      <ModalPadding>
+        <h2 className="title unbounded">{t('removeBond')}</h2>
+        {warnings.length > 0 ? (
+          <ModalWarnings withMargin>
+            {warnings.map((text, i) => (
+              <Warning key={`warning${i}`} text={text} />
+            ))}
+          </ModalWarnings>
+        ) : null}
         <UnbondFeedback
           bondFor={bondFor}
-          listenIsValid={setBondValid}
+          listenIsValid={(valid, errors) => {
+            setBondValid(valid);
+            setFeedbackErrors(errors);
+          }}
           setters={[
             {
               set: setBond,
               current: bond,
             },
           ]}
-          warnings={warnings}
           txFees={txFees}
         />
-        <NotesWrapper>
+        <ModalNotes withPadding>
           {bondFor === 'pool' ? (
             <>
               {isDepositor() ? (
@@ -185,38 +213,33 @@ export const Unbond = () => {
                   {t('notePoolDepositorMinBond', {
                     context: 'depositor',
                     bond: minCreateBond,
-                    unit: network.unit,
+                    unit,
                   })}
                 </p>
               ) : (
                 <p>
                   {t('notePoolDepositorMinBond', {
                     context: 'member',
-                    bond: minCreateBond,
-                    unit: network.unit,
+                    bond: minJoinBond,
+                    unit,
                   })}
                 </p>
               )}
             </>
           ) : null}
-          <p>{t('onceUnbonding', { bondDuration })}</p>
-          <EstimatedTxFee />
-        </NotesWrapper>
-        <FooterWrapper>
-          <div>
-            <ButtonSubmit
-              text={`${submitting ? t('submitting') : t('submit')}`}
-              iconLeft={faArrowAltCircleUp}
-              iconTransform="grow-2"
-              onClick={() => submitTx()}
-              disabled={
-                submitting ||
-                !(bondValid && accountHasSigner(signingAccount) && txFeesValid)
-              }
-            />
-          </div>
-        </FooterWrapper>
-      </PaddingWrapper>
+          <StaticNote
+            value={bondDurationFormatted}
+            tKey="onceUnbonding"
+            valueKey="bondDurationFormatted"
+            deps={[bondDuration]}
+          />
+        </ModalNotes>
+      </ModalPadding>
+      <SubmitTx
+        fromController={isStaking}
+        valid={bondValid}
+        {...submitExtrinsic}
+      />
     </>
   );
 };

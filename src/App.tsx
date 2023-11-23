@@ -1,14 +1,16 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
+import React from 'react';
+import { I18nextProvider } from 'react-i18next';
 import { DefaultNetwork } from 'consts';
 import { ThemesProvider } from 'contexts/Themes';
 import { i18next } from 'locale';
 import { Providers } from 'Providers';
-import React from 'react';
-import { I18nextProvider } from 'react-i18next';
+import { NetworkProvider } from 'contexts/Network';
+import { ActiveAccountsProvider } from 'contexts/ActiveAccounts';
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   let network = localStorage.getItem('network');
 
   if (network === null) {
@@ -19,10 +21,12 @@ const App: React.FC = () => {
   return (
     <I18nextProvider i18n={i18next}>
       <ThemesProvider>
-        <Providers />
+        <NetworkProvider>
+          <ActiveAccountsProvider>
+            <Providers />
+          </ActiveAccountsProvider>
+        </NetworkProvider>
       </ThemesProvider>
     </I18nextProvider>
   );
 };
-
-export default App;

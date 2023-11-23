@@ -1,37 +1,37 @@
 // Copyright 2023 @paritytech/polkadot-staking-dashboard authors & contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 
-import { useModal } from 'contexts/Modal';
-import { ReactComponent as LanguageSVG } from 'img/language.svg';
+import { ModalPadding } from '@polkadot-cloud/react';
+import { useTranslation } from 'react-i18next';
+import LanguageSVG from 'img/language.svg?react';
 import { Title } from 'library/Modal/Title';
 import { availableLanguages } from 'locale';
 import { changeLanguage } from 'locale/utils';
-import { useTranslation } from 'react-i18next';
-import { PaddingWrapper } from '../Wrappers';
+import { useOverlay } from '@polkadot-cloud/react/hooks';
 import { ContentWrapper, LocaleButton } from './Wrapper';
 
 export const ChooseLanguage = () => {
   const { i18n, t } = useTranslation('modals');
-  const { setStatus } = useModal();
+  const { setModalStatus } = useOverlay().modal;
 
   return (
     <>
       <Title title={t('chooseLanguage')} Svg={LanguageSVG} />
-      <PaddingWrapper>
+      <ModalPadding>
         <ContentWrapper>
           <div className="item">
-            {availableLanguages.map((a: Array<string>, i: number) => {
+            {availableLanguages.map((a, i) => {
               const code = a[0];
               const label = a[1];
 
               return (
                 <h3 key={`${code}_${i}`}>
                   <LocaleButton
-                    connected={i18n.resolvedLanguage === code}
+                    $connected={i18n.resolvedLanguage === code}
                     type="button"
                     onClick={() => {
                       changeLanguage(code, i18n);
-                      setStatus(2);
+                      setModalStatus('closing');
                     }}
                   >
                     {label}
@@ -44,7 +44,7 @@ export const ChooseLanguage = () => {
             })}
           </div>
         </ContentWrapper>
-      </PaddingWrapper>
+      </ModalPadding>
     </>
   );
 };
