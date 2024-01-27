@@ -5,12 +5,12 @@ import { faBars, faGripVertical } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { isNotZero } from '@polkadot-cloud/utils';
 import { motion } from 'framer-motion';
-import React, { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListItemsPerBatch, ListItemsPerPage } from 'consts';
 import { useApi } from 'contexts/Api';
 import { useFilters } from 'contexts/Filters';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { useTheme } from 'contexts/Themes';
 import { useUi } from 'contexts/UI';
 import {
@@ -23,7 +23,7 @@ import { Pagination } from 'library/List/Pagination';
 import { SearchInput } from 'library/List/SearchInput';
 import { Selectable } from 'library/List/Selectable';
 import { ValidatorItem } from 'library/ValidatorList/ValidatorItem';
-import type { Validator } from 'contexts/Validators/types';
+import type { Validator, ValidatorListEntry } from 'contexts/Validators/types';
 import { useOverlay } from '@polkadot-cloud/react/hooks';
 import { useNetwork } from 'contexts/Network';
 import { useActiveAccounts } from 'contexts/ActiveAccounts';
@@ -74,10 +74,9 @@ export const ValidatorListInner = ({
     clearSearchTerm,
   } = useFilters();
   const { mode } = useTheme();
-  const { isReady } = useApi();
   const { isSyncing } = useUi();
   const listProvider = useList();
-  const { activeEra } = useNetworkMetrics();
+  const { isReady, activeEra } = useApi();
   const { activeAccount } = useActiveAccounts();
   const { setModalResize } = useOverlay().modal;
   const { injectValidatorListData } = useValidators();
@@ -101,7 +100,7 @@ export const ValidatorListInner = ({
 
   // Get nomination status relative to supplied nominator, if `format` is `nomination`.
   const processNominationStatus = () => {
-    if (format === 'nomination')
+    if (format === 'nomination') {
       if (bondFor === 'pool') {
         nominationStatus.current = Object.fromEntries(
           initialValidators.map(({ address }) => [
@@ -121,6 +120,7 @@ export const ValidatorListInner = ({
           ])
         );
       }
+    }
   };
 
   // Injects status into supplied initial validators.
@@ -142,18 +142,20 @@ export const ValidatorListInner = ({
   const [page, setPage] = useState<number>(1);
 
   // Default list of validators.
-  const [validatorsDefault, setValidatorsDefault] = useState(
+  const [validatorsDefault, setValidatorsDefault] = useState<
+    ValidatorListEntry[]
+  >(prepareInitialValidators());
+
+  // Manipulated list (custom ordering, filtering) of validators.
+  const [validators, setValidators] = useState<ValidatorListEntry[]>(
     prepareInitialValidators()
   );
 
-  // Manipulated list (custom ordering, filtering) of validators.
-  const [validators, setValidators] = useState(prepareInitialValidators());
-
   // Store whether the validator list has been fetched initially.
-  const [fetched, setFetched] = useState(false);
+  const [fetched, setFetched] = useState<boolean>(false);
 
   // Store whether the search bar is being used.
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
 
   // Current render iteration.
   const [renderIteration, setRenderIterationState] = useState<number>(1);
@@ -215,10 +217,12 @@ export const ValidatorListInner = ({
 
   // if in modal, handle resize
   const maybeHandleModalResize = () => {
-    if (displayFor === 'modal') setModalResize();
+    if (displayFor === 'modal') {
+      setModalResize();
+    }
   };
 
-  const handleSearchChange = (e: React.FormEvent<HTMLInputElement>) => {
+  const handleSearchChange = (e: FormEvent<HTMLInputElement>) => {
     const newValue = e.currentTarget.value;
 
     let filteredValidators = Object.assign(validatorsDefault);
@@ -284,7 +288,9 @@ export const ValidatorListInner = ({
 
   // Configure validator list when network is ready to fetch.
   useEffect(() => {
-    if (isReady && isNotZero(activeEra.index) && !fetched) setupValidatorList();
+    if (isReady && isNotZero(activeEra.index) && !fetched) {
+      setupValidatorList();
+    }
   }, [isReady, activeEra.index, fetched]);
 
   // Control render throttle.
@@ -298,12 +304,16 @@ export const ValidatorListInner = ({
 
   // Trigger `onSelected` when selection changes.
   useEffect(() => {
-    if (onSelected) onSelected(listProvider);
+    if (onSelected) {
+      onSelected(listProvider);
+    }
   }, [selected]);
 
   // List ui changes / validator changes trigger re-render of list.
   useEffect(() => {
-    if (allowFilters && fetched) handleValidatorsFilterUpdate();
+    if (allowFilters && fetched) {
+      handleValidatorsFilterUpdate();
+    }
   }, [order, isSyncing, includes, excludes]);
 
   // Handle modal resize on list format change.

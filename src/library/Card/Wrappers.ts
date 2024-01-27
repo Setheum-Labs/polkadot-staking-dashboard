@@ -58,7 +58,7 @@ export const CardHeaderWrapper = styled.div<CardHeaderWrapperProps>`
   .networkIcon {
     width: 1.9rem;
     height: 1.9rem;
-    margin-right: 0.55rem;
+    margin-right: 0.5rem;
   }
 
   > div {
@@ -82,6 +82,11 @@ export const CardWrapper = styled.div<CardWrapperProps>`
   overflow: hidden;
   margin-top: 1.4rem;
   padding: 1.5rem;
+
+  &.canvas {
+    background: var(--background-canvas-card);
+    padding: 1.25rem;
+  }
 
   &.transparent {
     background: none;
@@ -120,6 +125,7 @@ export const CardWrapper = styled.div<CardWrapperProps>`
       margin-top: 0;
     }
     h3 {
+      margin-left: 0;
       margin-bottom: 0.75rem;
     }
 

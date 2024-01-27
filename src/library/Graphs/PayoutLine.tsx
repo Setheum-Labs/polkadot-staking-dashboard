@@ -16,11 +16,10 @@ import { Line } from 'react-chartjs-2';
 import { useTranslation } from 'react-i18next';
 import { usePoolMemberships } from 'contexts/Pools/PoolMemberships';
 import { useStaking } from 'contexts/Staking';
-import { useSubscan } from 'contexts/Plugins/Subscan';
 import { useTheme } from 'contexts/Themes';
 import { useUi } from 'contexts/UI';
 import { graphColors } from 'styles/graphs';
-import type { AnySubscan } from 'types';
+import type { AnyJson, AnySubscan } from 'types';
 import { useNetwork } from 'contexts/Network';
 import type { PayoutLineProps } from './types';
 import {
@@ -44,12 +43,12 @@ export const PayoutLine = ({
   average,
   height,
   background,
+  data: { payouts, poolClaims },
 }: PayoutLineProps) => {
   const { t } = useTranslation('library');
   const { mode } = useTheme();
   const { isSyncing } = useUi();
   const { inSetup } = useStaking();
-  const { payouts, poolClaims } = useSubscan();
   const { unit, units, colors } = useNetwork().networkData;
   const { membership: poolMembership } = usePoolMemberships();
 
@@ -57,9 +56,7 @@ export const PayoutLine = ({
   const poolingOnly = !isSyncing && inSetup() && poolMembership !== null;
 
   // remove slashes from payouts (graph does not support negative values).
-  const payoutsNoSlash = payouts.filter(
-    (p: AnySubscan) => p.event_id !== 'Slashed'
-  );
+  const payoutsNoSlash = payouts?.filter((p) => p.event_id !== 'Slashed') || [];
 
   // define the most recent date that we will show on the graph.
   const fromDate = new Date();
@@ -132,11 +129,11 @@ export const PayoutLine = ({
         titleColor: graphColors.label[mode],
         bodyColor: graphColors.label[mode],
         bodyFont: {
-          weight: '600',
+          weight: 600,
         },
         callbacks: {
           title: () => [],
-          label: (context: any) =>
+          label: (context: AnyJson) =>
             ` ${new BigNumber(context.parsed.y)
               .decimalPlaces(units)
               .toFormat()} ${unit}`,
@@ -156,10 +153,11 @@ export const PayoutLine = ({
         label: t('payout'),
         data: combinedPayouts.map((item: AnySubscan) => item?.amount ?? 0),
         borderColor: color,
-        backgroundColor: color,
         pointStyle: undefined,
         pointRadius: 0,
         borderWidth: 2.3,
+        tension: 0.25,
+        fill: false,
       },
     ],
   };

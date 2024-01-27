@@ -7,21 +7,20 @@ import { ButtonHelp } from '@polkadot-cloud/react';
 import { planckToUnit } from '@polkadot-cloud/utils';
 import { useTranslation } from 'react-i18next';
 import { useHelp } from 'contexts/Help';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
-import { useStaking } from 'contexts/Staking';
 import { useUi } from 'contexts/UI';
 import { useNetwork } from 'contexts/Network';
 import type { NominateStatusBarProps } from '../types';
 import { Wrapper } from './Wrapper';
+import { useApi } from 'contexts/Api';
 
 export const NominateStatusBar = ({ value }: NominateStatusBarProps) => {
   const { t } = useTranslation('library');
-  const { staking } = useStaking();
   const { isSyncing } = useUi();
   const { unit, units } = useNetwork().networkData;
-  const { minNominatorBond } = staking;
-  const { metrics } = useNetworkMetrics();
-  const { minimumActiveStake } = metrics;
+  const {
+    networkMetrics: { minimumActiveStake },
+    stakingMetrics: { minNominatorBond },
+  } = useApi();
   const { openHelp } = useHelp();
 
   const minNominatorBondUnit = planckToUnit(minNominatorBond, units);

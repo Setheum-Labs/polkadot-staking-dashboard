@@ -7,7 +7,6 @@ import BigNumber from 'bignumber.js';
 import { fromUnixTime } from 'date-fns';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { Countdown } from 'library/Countdown';
 import { useErasToTimeLeft } from 'library/Hooks/useErasToTimeLeft';
 import { useTimeLeft } from 'library/Hooks/useTimeLeft';
@@ -15,16 +14,18 @@ import { useUnstaking } from 'library/Hooks/useUnstaking';
 import { useNetwork } from 'contexts/Network';
 import { useActiveAccounts } from 'contexts/ActiveAccounts';
 import { ChunkWrapper } from './Wrappers';
+import type { ChunkProps } from './types';
+import { useApi } from 'contexts/Api';
 
-export const Chunk = ({ chunk, bondFor, onRebond }: any) => {
+export const Chunk = ({ chunk, bondFor, onRebond }: ChunkProps) => {
   const { t } = useTranslation('modals');
 
+  const { activeEra } = useApi();
   const {
     networkData: { units, unit },
     network,
   } = useNetwork();
   const { activeAccount } = useActiveAccounts();
-  const { activeEra } = useNetworkMetrics();
   const { isFastUnstaking } = useUnstaking();
   const { erasToSeconds } = useErasToTimeLeft();
   const { timeleft, setFromNow } = useTimeLeft();
@@ -47,7 +48,7 @@ export const Chunk = ({ chunk, bondFor, onRebond }: any) => {
     <ChunkWrapper>
       <div>
         <section>
-          <h2>{`${planckToUnit(value, units)} ${unit}`}</h2>
+          <h2>{`${planckToUnit(new BigNumber(value), units)} ${unit}`}</h2>
           <h4>
             {left.isLessThanOrEqualTo(0) ? (
               t('unlocked')

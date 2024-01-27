@@ -50,11 +50,18 @@ export const Wrapper = styled.div`
 
       h2 {
         color: var(--accent-color-primary);
+        display: flex;
+        align-items: center;
+
+        > button {
+          color: var(--accent-color-primary);
+          margin-left: 0.75rem;
+        }
       }
 
       h4 {
         color: var(--text-color-secondary);
-        font-family: InterSemiBold, sans-serif;
+        font-family: Inter, sans-serif;
         display: flex;
         flex-flow: row wrap;
         align-items: center;

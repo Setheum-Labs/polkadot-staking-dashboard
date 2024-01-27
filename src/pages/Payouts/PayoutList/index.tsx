@@ -7,11 +7,10 @@ import { ellipsisFn, isNotZero, planckToUnit } from '@polkadot-cloud/utils';
 import BigNumber from 'bignumber.js';
 import { formatDistance, fromUnixTime } from 'date-fns';
 import { motion } from 'framer-motion';
-import React, { useEffect, useRef, useState } from 'react';
+import { Component, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DefaultLocale, ListItemsPerBatch, ListItemsPerPage } from 'consts';
 import { useApi } from 'contexts/Api';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { useBondedPools } from 'contexts/Pools/BondedPools';
 import { StakingContext } from 'contexts/Staking';
 import { useTheme } from 'contexts/Themes';
@@ -37,11 +36,10 @@ export const PayoutListInner = ({
 }: PayoutListProps) => {
   const { i18n, t } = useTranslation('pages');
   const { mode } = useTheme();
-  const { isReady } = useApi();
+  const { isReady, activeEra } = useApi();
   const {
     networkData: { units, unit, colors },
   } = useNetwork();
-  const { activeEra } = useNetworkMetrics();
   const { listFormat, setListFormat } = usePayoutList();
   const { validators } = useValidators();
   const { bondedPools } = useBondedPools();
@@ -53,7 +51,7 @@ export const PayoutListInner = ({
   const [renderIteration, _setRenderIteration] = useState<number>(1);
 
   // manipulated list (ordering, filtering) of payouts
-  const [payouts, setPayouts] = useState(initialPayouts);
+  const [payouts, setPayouts] = useState<AnySubscan>(initialPayouts);
 
   // is this the initial fetch
   const [fetched, setFetched] = useState<boolean>(false);
@@ -109,7 +107,7 @@ export const PayoutListInner = ({
   }
 
   if (!payouts.length) {
-    return <></>;
+    return null;
   }
 
   return (
@@ -206,26 +204,20 @@ export const PayoutListInner = ({
                     <div className="row">
                       <div>
                         <div>
-                          {label === t('payouts.payout') && (
-                            <>
-                              {batchIndex > 0 ? (
-                                <Identity address={p.validator_stash} />
-                              ) : (
-                                <div>{ellipsisFn(p.validator_stash)}</div>
-                              )}
-                            </>
-                          )}
-                          {label === t('payouts.poolClaim') && (
-                            <>
-                              {pool ? (
-                                <PoolIdentity pool={pool} />
-                              ) : (
-                                <h4>
-                                  {t('payouts.fromPool')} {p.pool_id}
-                                </h4>
-                              )}
-                            </>
-                          )}
+                          {label === t('payouts.payout') &&
+                            (batchIndex > 0 ? (
+                              <Identity address={p.validator_stash} />
+                            ) : (
+                              <div>{ellipsisFn(p.validator_stash)}</div>
+                            ))}
+                          {label === t('payouts.poolClaim') &&
+                            (pool ? (
+                              <PoolIdentity pool={pool} />
+                            ) : (
+                              <h4>
+                                {t('payouts.fromPool')} {p.pool_id}
+                              </h4>
+                            ))}
                           {label === t('payouts.slashed') && (
                             <h4>{t('payouts.deductedFromBond')}</h4>
                           )}
@@ -264,7 +256,7 @@ export const PayoutList = (props: PayoutListProps) => (
   </PayoutListProvider>
 );
 
-export class PayoutListShouldUpdate extends React.Component {
+export class PayoutListShouldUpdate extends Component {
   static contextType = StakingContext;
 
   render() {

@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import { useApi } from 'contexts/Api';
 import { useBonded } from 'contexts/Bonded';
 import type { PayeeConfig, PayeeOptions } from 'contexts/Setup/types';
-import { useStaking } from 'contexts/Staking';
 import { Warning } from 'library/Form/Warning';
 import { usePayeeConfig } from 'library/Hooks/usePayeeConfig';
 import { useSignerWarnings } from 'library/Hooks/useSignerWarnings';
@@ -22,20 +21,21 @@ import type { MaybeAddress } from 'types';
 import { useTxMeta } from 'contexts/TxMeta';
 import { useOverlay } from '@polkadot-cloud/react/hooks';
 import { useActiveAccounts } from 'contexts/ActiveAccounts';
+import { useBalances } from 'contexts/Balances';
 
 export const UpdatePayee = () => {
   const { t } = useTranslation('modals');
   const { api } = useApi();
-  const { staking } = useStaking();
-  const { activeAccount } = useActiveAccounts();
+  const { getPayee } = useBalances();
   const { notEnoughFunds } = useTxMeta();
   const { getBondedAccount } = useBonded();
   const { getPayeeItems } = usePayeeConfig();
+  const { activeAccount } = useActiveAccounts();
   const { getSignerWarnings } = useSignerWarnings();
   const { setModalStatus, setModalResize } = useOverlay().modal;
 
   const controller = getBondedAccount(activeAccount);
-  const { payee } = staking;
+  const payee = getPayee(activeAccount);
 
   const DefaultSelected: PayeeConfig = {
     destination: null,
@@ -46,7 +46,7 @@ export const UpdatePayee = () => {
   const [account, setAccount] = useState<MaybeAddress>(payee.account);
 
   // Store the currently selected payee option.
-  const [selected, setSelected]: any = useState<PayeeConfig>(DefaultSelected);
+  const [selected, setSelected] = useState<PayeeConfig>(DefaultSelected);
 
   // update setup progress with payee config.
   const handleChangeDestination = (destination: PayeeOptions) => {
@@ -95,7 +95,6 @@ export const UpdatePayee = () => {
     callbackSubmit: () => {
       setModalStatus('closing');
     },
-    callbackInBlock: () => {},
   });
 
   // Reset selected value on account change.

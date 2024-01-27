@@ -3,27 +3,29 @@
 
 import { localStorageOrDefault, setStateWithRef } from '@polkadot-cloud/utils';
 import BigNumber from 'bignumber.js';
-import React, { useEffect, useRef, useState } from 'react';
+import type { ReactNode, RefObject } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { SideMenuStickyThreshold } from 'consts';
 import { useBalances } from 'contexts/Balances';
-import type { ImportedAccount } from '@polkadot-cloud/react/types';
 import { useActivePools } from 'contexts/Pools/ActivePools';
 import { useEffectIgnoreInitial } from '@polkadot-cloud/react/hooks';
-import { useImportedAccounts } from 'contexts/Connect/ImportedAccounts';
 import type { AnyJson } from 'types';
 import { useApi } from '../Api';
-import { useNetworkMetrics } from '../NetworkMetrics';
 import { useStaking } from '../Staking';
 import * as defaults from './defaults';
 import type { UIContextInterface } from './types';
 
-export const UIProvider = ({ children }: { children: React.ReactNode }) => {
-  const { isReady } = useApi();
-  const { balances } = useBalances();
-  const { staking, eraStakers } = useStaking();
-  const { activeEra, metrics } = useNetworkMetrics();
+export const UIContext = createContext<UIContextInterface>(
+  defaults.defaultUIContext
+);
+
+export const useUi = () => useContext(UIContext);
+
+export const UIProvider = ({ children }: { children: ReactNode }) => {
+  const { eraStakers } = useStaking();
+  const { balancesInitialSynced } = useBalances();
   const { synced: activePoolsSynced } = useActivePools();
-  const { accounts: connectAccounts } = useImportedAccounts();
+  const { isReady, networkMetrics, activeEra, stakingMetrics } = useApi();
 
   // Set whether the network has been synced.
   const [isNetworkSyncing, setIsNetworkSyncing] = useState<boolean>(false);
@@ -40,16 +42,19 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // Store whether in Brave browser. Used for light client warning.
   const [isBraveBrowser, setIsBraveBrowser] = useState<boolean>(false);
 
-  // Store referneces for main app conainers.
-  const [containerRefs, setContainerRefsState] = useState({});
-  const setContainerRefs = (v: any) => {
+  // Store references for main app containers.
+  const [containerRefs, setContainerRefsState] = useState<
+    Record<string, RefObject<HTMLDivElement>>
+  >({});
+  const setContainerRefs = (v: Record<string, RefObject<HTMLDivElement>>) => {
     setContainerRefsState(v);
   };
 
   // Get side menu minimised state from local storage, default to false.
-  const [userSideMenuMinimised, setUserSideMenuMinimisedState] = useState(
-    localStorageOrDefault('side_menu_minimised', false, true) as boolean
-  );
+  const [userSideMenuMinimised, setUserSideMenuMinimisedState] =
+    useState<boolean>(
+      localStorageOrDefault('side_menu_minimised', false, true) as boolean
+    );
   const userSideMenuMinimisedRef = useRef(userSideMenuMinimised);
   const setUserSideMenuMinimised = (v: boolean) => {
     localStorage.setItem('side_menu_minimised', String(v));
@@ -57,7 +62,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Automatic side menu minimised.
-  const [sideMenuMinimised, setSideMenuMinimised] = useState(
+  const [sideMenuMinimised, setSideMenuMinimised] = useState<boolean>(
     window.innerWidth <= SideMenuStickyThreshold
       ? true
       : userSideMenuMinimisedRef.current
@@ -97,33 +102,21 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     let networkSyncing = false;
     let poolSyncing = false;
 
-    if (!isReady) {
-      syncing = true;
-      networkSyncing = true;
-      poolSyncing = true;
-    }
     // staking metrics have synced
-    if (staking.lastReward === new BigNumber(0)) {
+    if (stakingMetrics.lastReward === new BigNumber(0)) {
       syncing = true;
       networkSyncing = true;
-      poolSyncing = true;
     }
 
     // era has synced from Network
     if (activeEra.index.isZero()) {
       syncing = true;
       networkSyncing = true;
-      poolSyncing = true;
     }
 
-    // all extension accounts have been synced
-    const extensionAccounts = connectAccounts.filter(
-      (a: ImportedAccount) => a.source !== 'external'
-    );
-    if (balances.length < extensionAccounts.length) {
+    if (!balancesInitialSynced) {
       syncing = true;
       networkSyncing = true;
-      poolSyncing = true;
     }
 
     setIsNetworkSyncing(networkSyncing);
@@ -137,10 +130,19 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     setIsPoolSyncing(poolSyncing);
 
     // eraStakers total active nominators has synced
-    if (!eraStakers.totalActiveNominators) syncing = true;
+    if (!eraStakers.totalActiveNominators) {
+      syncing = true;
+    }
 
     setIsSyncing(syncing);
-  }, [isReady, staking, metrics, balances, eraStakers, activePoolsSynced]);
+  }, [
+    isReady,
+    stakingMetrics,
+    networkMetrics,
+    eraStakers,
+    activePoolsSynced,
+    balancesInitialSynced,
+  ]);
 
   return (
     <UIContext.Provider
@@ -155,16 +157,10 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
         isPoolSyncing,
         containerRefs,
         isBraveBrowser,
-        userSideMenuMinimised: userSideMenuMinimisedRef.current,
+        userSideMenuMinimised,
       }}
     >
       {children}
     </UIContext.Provider>
   );
 };
-
-export const UIContext = React.createContext<UIContextInterface>(
-  defaults.defaultUIContext
-);
-
-export const useUi = () => React.useContext(UIContext);

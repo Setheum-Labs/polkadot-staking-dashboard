@@ -3,23 +3,21 @@
 
 import BigNumber from 'bignumber.js';
 import { useTranslation } from 'react-i18next';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { useBondedPools } from 'contexts/Pools/BondedPools';
-import { useStaking } from 'contexts/Staking';
 import { CardHeaderWrapper, CardWrapper } from 'library/Card/Wrappers';
-import { useInflation } from 'library/Hooks/useInflation';
 import { StatsHead } from 'library/StatsHead';
 import { Announcements } from './Announcements';
 import { Wrapper } from './Wrappers';
+import { useAverageRewardRate } from 'library/Hooks/useAverageRewardRate';
+import { useApi } from 'contexts/Api';
 
 export const NetworkStats = () => {
   const { t } = useTranslation('pages');
   const { bondedPools } = useBondedPools();
-  const { inflation } = useInflation();
-  const { metrics } = useNetworkMetrics();
-  const { staking } = useStaking();
-  const { totalNominators, totalValidators } = staking;
-  const { totalIssuance } = metrics;
+  const { getAverageRewardRate } = useAverageRewardRate();
+  const { totalNominators, totalValidators } = useApi().stakingMetrics;
+
+  const { inflationToStakers } = getAverageRewardRate(false);
 
   const items = [
     {
@@ -38,11 +36,11 @@ export const NetworkStats = () => {
       helpKey: 'Active Pools',
     },
     {
-      label: t('overview.inflationRate'),
+      label: t('overview.latestInflationRate'),
       value: `${
-        totalIssuance.toString() === '0'
+        inflationToStakers.toString() === '0'
           ? '0'
-          : new BigNumber(inflation).decimalPlaces(2).toFormat()
+          : inflationToStakers.decimalPlaces(2).toFormat()
       }%`,
       helpKey: 'Inflation',
     },

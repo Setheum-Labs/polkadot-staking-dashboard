@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { stringToU8a } from '@polkadot/util';
-import BigNumber from 'bignumber.js';
 import type { Plugin } from 'types';
 
 /*
  * Global Constants
  */
-export const AppVersion = '1.1.2';
+export const AppVersion = '1.1.3';
 export const DappName = 'Polkadot Staking Dashboard';
 export const PolkadotUrl = 'https://polkadot.network/features/staking/';
 export const DefaultNetwork = 'polkadot';
@@ -41,17 +40,6 @@ export const PluginsList: Plugin[] = [
 ];
 
 /*
- * Fallback config values
- */
-export const FallbackMaxNominations = new BigNumber(16);
-export const FallbackBondingDuration = new BigNumber(28);
-export const FallbackSessionsPerEra = new BigNumber(6);
-export const FallbackNominatorRewardedPerValidator = new BigNumber(512);
-export const FallbackMaxElectingVoters = new BigNumber(22500);
-export const FallbackExpectedBlockTime = new BigNumber(6000);
-export const FallbackEpochDuration = new BigNumber(2400);
-
-/*
  * Misc values
  */
 export const ListItemsPerPage = 25;
@@ -63,15 +51,9 @@ export const MaxEraRewardPointsEras = 14;
 /*
  * Third party API keys and endpoints
  */
-export const ApiSubscanKey = 'd37149339f64775155a82a53f4253b27';
 export const EndpointPrice = 'https://api.binance.com/api/v3';
 export const ApiEndpoints = {
   priceChange: `${EndpointPrice}/ticker/24hr?symbol=`,
-  subscanRewardSlash: '/api/v2/scan/account/reward_slash',
-  subscanPoolRewards: '/api/scan/nomination_pool/rewards',
-  subscanEraStat: '/api/scan/staking/era_stat',
-  subscanPoolMembers: '/api/scan/nomination_pool/pool/members',
-  subscanPoolDetails: '/api/scan/nomination_pool/pool',
 };
 
 /*

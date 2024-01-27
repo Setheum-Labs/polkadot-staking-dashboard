@@ -10,6 +10,7 @@ import {
 } from '@polkadot-cloud/react';
 import { planckToUnit } from '@polkadot-cloud/utils';
 import BigNumber from 'bignumber.js';
+import type { ForwardedRef } from 'react';
 import { forwardRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from 'contexts/Api';
@@ -19,64 +20,87 @@ import { useSubmitExtrinsic } from 'library/Hooks/useSubmitExtrinsic';
 import { SubmitTx } from 'library/SubmitTx';
 import { useOverlay } from '@polkadot-cloud/react/hooks';
 import { useBatchCall } from 'library/Hooks/useBatchCall';
-import type { AnyApi, AnySubscan } from 'types';
-import { useSubscan } from 'contexts/Plugins/Subscan';
+import type { AnyApi } from 'types';
 import { usePayouts } from 'contexts/Payouts';
 import { useNetwork } from 'contexts/Network';
 import { useActiveAccounts } from 'contexts/ActiveAccounts';
 import type { FormProps, ActivePayout } from './types';
 import { ContentWrapper } from './Wrappers';
+import { SubscanController } from 'static/SubscanController';
 
 export const Forms = forwardRef(
-  ({ setSection, payouts, setPayouts }: FormProps, ref: any) => {
+  (
+    { setSection, payouts, setPayouts }: FormProps,
+    ref: ForwardedRef<HTMLDivElement>
+  ) => {
     const { t } = useTranslation('modals');
-    const { api } = useApi();
+    const { api, isPagedRewardsActive } = useApi();
     const {
       networkData: { units, unit },
     } = useNetwork();
-    const { activeAccount } = useActiveAccounts();
     const { newBatchCall } = useBatchCall();
     const { removeEraPayout } = usePayouts();
     const { setModalStatus } = useOverlay().modal;
+    const { activeAccount } = useActiveAccounts();
     const { getSignerWarnings } = useSignerWarnings();
-    const { unclaimedPayouts: unclaimedPayoutsSubscan, setUnclaimedPayouts } =
-      useSubscan();
 
+    // Get the total payout amount.
     const totalPayout =
       payouts?.reduce(
         (total: BigNumber, cur: ActivePayout) => total.plus(cur.payout),
         new BigNumber(0)
       ) || new BigNumber(0);
 
+    // Get the total number of validators to payout (the same validator can repeat for separate
+    // eras).
+    const totalPayoutValidators =
+      payouts?.reduce(
+        (prev, { paginatedValidators }) =>
+          prev + (paginatedValidators?.length || 0),
+        0
+      ) || 0;
+
     const getCalls = () => {
-      if (!api) return [];
+      if (!api) {
+        return [];
+      }
 
       const calls: AnyApi[] = [];
-      payouts?.forEach(({ era, validators }) => {
-        if (!validators) return [];
+      payouts?.forEach(({ era, paginatedValidators }) => {
+        if (!paginatedValidators) {
+          return [];
+        }
 
-        return validators.forEach((v) =>
-          calls.push(api.tx.staking.payoutStakers(v, era))
-        );
+        return paginatedValidators.forEach(([page, v]) => {
+          if (isPagedRewardsActive(new BigNumber(era))) {
+            return calls.push(api.tx.staking.payoutStakersByPage(v, era, page));
+          }
+          // DEPRECATION: Paged Rewards
+          //
+          // Fall back to deprecated `payoutStakers` if not on paged reward era.
+          return calls.push(api.tx.staking.payoutStakers(v, era));
+        });
       });
       return calls;
     };
 
     // Store whether form is valid to submit transaction.
     const [valid, setValid] = useState<boolean>(
-      totalPayout.isGreaterThan(0) && getCalls().length > 0
+      totalPayout.isGreaterThan(0) && totalPayoutValidators > 0
     );
 
     // Ensure payouts value is valid.
     useEffect(
-      () => setValid(totalPayout.isGreaterThan(0) && getCalls().length > 0),
+      () => setValid(totalPayout.isGreaterThan(0) && totalPayoutValidators > 0),
       [payouts]
     );
 
     const getTx = () => {
       const tx = null;
       const calls = getCalls();
-      if (!valid || !api || !calls.length) return tx;
+      if (!valid || !api || !calls.length) {
+        return tx;
+      }
 
       return calls.length === 1
         ? calls.pop()
@@ -91,26 +115,21 @@ export const Forms = forwardRef(
         setModalStatus('closing');
       },
       callbackInBlock: () => {
-        // Remove Subscan unclaimed payout record(s) if they exists.
-        let newUnclaimedPayoutsSubscan = unclaimedPayoutsSubscan;
-
-        payouts?.forEach(({ era, validators }) => {
-          validators?.forEach((validator) => {
-            newUnclaimedPayoutsSubscan = newUnclaimedPayoutsSubscan.filter(
-              (u: AnySubscan) =>
-                !(u.validator_stash === validator && String(u.era) === era)
-            );
+        if (payouts) {
+          // Remove Subscan unclaimed payout record(s) if they exist.
+          const eraPayouts: string[] = [];
+          payouts.forEach(({ era }) => {
+            eraPayouts.push(String(era));
           });
-        });
-        setUnclaimedPayouts(newUnclaimedPayoutsSubscan);
+          SubscanController.removeUnclaimedPayouts(eraPayouts);
 
-        // Deduct from `unclaimedPayouts` in Payouts context.
-        payouts?.forEach(({ era, validators }) => {
-          for (const v of validators || []) {
-            removeEraPayout(era, v);
-          }
-        });
-
+          // Deduct from `unclaimedPayouts` in Payouts context.
+          payouts.forEach(({ era, paginatedValidators }) => {
+            for (const v of paginatedValidators || []) {
+              removeEraPayout(era, v[1]);
+            }
+          });
+        }
         // Reset active form payouts for this modal.
         setPayouts([]);
       },
@@ -162,3 +181,5 @@ export const Forms = forwardRef(
     );
   }
 );
+
+Forms.displayName = 'Forms';

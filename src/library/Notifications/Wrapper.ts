@@ -11,7 +11,7 @@ export const Wrapper = styled.ul`
   flex-direction: column;
   list-style: none;
   justify-content: flex-end;
-  z-index: 10;
+  z-index: 12;
 
   li {
     background: var(--background-primary);
@@ -33,10 +33,10 @@ export const Wrapper = styled.ul`
       margin: 0.15rem 0 0.4rem;
       flex: 1;
     }
-    h4 {
-      font-family: InterSemiBold, sans-serif;
+    p {
       font-size: 1.05rem;
       line-height: 1.45rem;
+      margin: 0;
     }
   }
 `;

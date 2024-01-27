@@ -8,9 +8,9 @@ import {
   setStateWithRef,
 } from '@polkadot-cloud/utils';
 import BigNumber from 'bignumber.js';
-import React, { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useRef, useState } from 'react';
 import { useApi } from 'contexts/Api';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import { useStaking } from 'contexts/Staking';
 import type { AnyApi, AnyJson, MaybeAddress } from 'types';
 import Worker from 'workers/stakers?worker';
@@ -28,19 +28,24 @@ import type {
 
 const worker = new Worker();
 
-export const FastUnstakeProvider = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
+export const FastUnstakeContext = createContext<FastUnstakeContextInterface>(
+  defaultFastUnstakeContext
+);
+
+export const useFastUnstake = () => useContext(FastUnstakeContext);
+
+export const FastUnstakeProvider = ({ children }: { children: ReactNode }) => {
+  const { activeEra } = useApi();
   const { network } = useNetwork();
-  const { api, isReady, consts } = useApi();
   const { activeAccount } = useActiveAccounts();
   const { inSetup, fetchEraStakers } = useStaking();
-  const { metrics, activeEra } = useNetworkMetrics();
   const { getNominationStatus } = useNominationStatus();
-  const { fastUnstakeErasToCheckPerBlock } = metrics;
-  const { bondDuration } = consts;
+  const {
+    api,
+    isReady,
+    consts: { bondDuration },
+    networkMetrics: { fastUnstakeErasToCheckPerBlock },
+  } = useApi();
   const { nominees } = getNominationStatus(activeAccount, 'nominator');
 
   // store whether a fast unstake check is in progress.
@@ -85,7 +90,9 @@ export const FastUnstakeProvider = ({
       fastUnstakeErasToCheckPerBlock > 0
     ) {
       // cancel fast unstake check on network change or account change.
-      for (const unsub of unsubs.current) unsub();
+      for (const unsub of unsubs.current) {
+        unsub();
+      }
 
       setStateWithRef(false, setChecking, checkingRef);
       setStateWithRef(null, setqueueDeposit, queueDepositRef);
@@ -143,7 +150,9 @@ export const FastUnstakeProvider = ({
     }
 
     return () => {
-      for (const unsub of unsubs.current) unsub();
+      for (const unsub of unsubs.current) {
+        unsub();
+      }
     };
   }, [
     inSetup(),
@@ -160,11 +169,15 @@ export const FastUnstakeProvider = ({
       // ensure correct task received.
       const { data } = message;
       const { task } = data;
-      if (task !== 'processEraForExposure') return;
+      if (task !== 'processEraForExposure') {
+        return;
+      }
 
       // ensure still same conditions.
       const { networkName, who } = data;
-      if (networkName !== network || who !== activeAccount) return;
+      if (networkName !== network || who !== activeAccount) {
+        return;
+      }
 
       const { era, exposed } = data;
 
@@ -225,8 +238,9 @@ export const FastUnstakeProvider = ({
       !a ||
       checkingRef.current ||
       !activeAccount
-    )
+    ) {
       return;
+    }
 
     setStateWithRef(true, setChecking, checkingRef);
     checkEra(era);
@@ -234,7 +248,9 @@ export const FastUnstakeProvider = ({
 
   // calls service worker to check exppsures for given era.
   const checkEra = async (era: BigNumber) => {
-    if (!api) return;
+    if (!api) {
+      return;
+    }
 
     const exposures = await fetchEraStakers(era.toString());
 
@@ -250,7 +266,9 @@ export const FastUnstakeProvider = ({
 
   // subscribe to fastUnstake queue
   const subscribeToFastUnstakeQueue = async () => {
-    if (!api || !activeAccount) return;
+    if (!api || !activeAccount) {
+      return;
+    }
     const subscribeQueue = async (a: MaybeAddress) => {
       const u = await api.query.fastUnstake.queue(a, (q: AnyApi) =>
         setStateWithRef(
@@ -285,7 +303,7 @@ export const FastUnstakeProvider = ({
       subscribeQueue(activeAccount),
       subscribeHead(),
       subscribeCounterForQueue(),
-    ]).then((u: any) => {
+    ]).then((u) => {
       unsubs.current = u;
     });
   };
@@ -293,7 +311,9 @@ export const FastUnstakeProvider = ({
   // gets any existing fast unstake metadata for an account.
   const getLocalMeta = (): LocalMeta | null => {
     const localMeta: AnyJson = localStorage.getItem(getLocalkey(activeAccount));
-    if (!localMeta) return null;
+    if (!localMeta) {
+      return null;
+    }
 
     const localMetaValidated = validateLocalExposure(
       JSON.parse(localMeta),
@@ -328,8 +348,3 @@ export const FastUnstakeProvider = ({
     </FastUnstakeContext.Provider>
   );
 };
-
-export const FastUnstakeContext =
-  React.createContext<FastUnstakeContextInterface>(defaultFastUnstakeContext);
-
-export const useFastUnstake = () => React.useContext(FastUnstakeContext);

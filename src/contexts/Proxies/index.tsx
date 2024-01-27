@@ -12,7 +12,8 @@ import {
   setStateWithRef,
 } from '@polkadot-cloud/utils';
 import BigNumber from 'bignumber.js';
-import React, { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useRef, useState } from 'react';
 import { isSupportedProxy } from 'config/proxies';
 import { useApi } from 'contexts/Api';
 import type { AnyApi, MaybeAddress } from 'types';
@@ -32,11 +33,13 @@ import type {
   ProxyDelegate,
 } from './types';
 
-export const ProxiesProvider = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
+export const ProxiesContext = createContext<ProxiesContextInterface>(
+  defaults.defaultProxiesContext
+);
+
+export const useProxies = () => useContext(ProxiesContext);
+
+export const ProxiesProvider = ({ children }: { children: ReactNode }) => {
   const { network } = useNetwork();
   const { api, isReady } = useApi();
   const { accounts } = useImportedAccounts();
@@ -51,12 +54,14 @@ export const ProxiesProvider = ({
 
   // Reformats proxies into a list of delegates.
   const formatProxiesToDelegates = () => {
-    // Reformat proxiesRef.current into a list of delegates.
+    // Reformat proxies into a list of delegates.
     const newDelegates: Delegates = {};
-    for (const proxy of proxiesRef.current) {
+    for (const proxy of proxies) {
       const { delegator } = proxy;
       // checking if delegator is not null to keep types happy.
-      if (!delegator) continue;
+      if (!delegator) {
+        continue;
+      }
 
       // get each delegate of this proxy record.
       for (const { delegate, proxyType } of proxy.delegates) {
@@ -83,20 +88,23 @@ export const ProxiesProvider = ({
   const handleSyncAccounts = () => {
     // Sync removed accounts.
     const handleRemovedAccounts = () => {
-      const removed = removedFrom(accounts, proxiesRef.current, [
-        'address',
-      ]).map(({ address }) => address);
+      const removed = removedFrom(accounts, proxies, ['address']).map(
+        ({ address }) => address
+      );
 
       removed?.forEach((address) => {
         // if delegates still exist for removed account, re-add the account as a read only system
         // account.
         if (delegates[address]) {
           const importResult = addExternalAccount(address, 'system');
-          if (importResult)
+          if (importResult) {
             addOrReplaceOtherAccount(importResult.account, importResult.type);
+          }
         } else {
           const unsub = unsubs.current[address];
-          if (unsub) unsub();
+          if (unsub) {
+            unsub();
+          }
         }
       });
 
@@ -106,14 +114,14 @@ export const ProxiesProvider = ({
     };
     // Sync added accounts.
     const handleAddedAccounts = () => {
-      addedTo(accounts, proxiesRef.current, ['address'])?.map(({ address }) =>
+      addedTo(accounts, proxies, ['address'])?.map(({ address }) =>
         subscribeToProxies(address)
       );
     };
     // Sync existing accounts.
     const handleExistingAccounts = () => {
       setStateWithRef(
-        matchedProperties(accounts, proxiesRef.current, ['address']),
+        matchedProperties(accounts, proxies, ['address']),
         setProxies,
         proxiesRef
       );
@@ -124,7 +132,9 @@ export const ProxiesProvider = ({
   };
 
   const subscribeToProxies = async (address: string) => {
-    if (!api) return undefined;
+    if (!api) {
+      return undefined;
+    }
 
     const unsub = await api.queryMulti<AnyApi>(
       [[api.query.proxy.proxies, address]],
@@ -168,13 +178,14 @@ export const ProxiesProvider = ({
 
   // Gets the delegates of the given account.
   const getDelegates = (address: MaybeAddress): Proxy | undefined =>
-    proxiesRef.current.find(({ delegator }) => delegator === address) ||
-    undefined;
+    proxies.find(({ delegator }) => delegator === address) || undefined;
 
   // Gets delegators and proxy types for the given delegate address.
   const getProxiedAccounts = (address: MaybeAddress): ProxiedAccounts => {
     const delegate = delegates[address || ''];
-    if (!delegate) return [];
+    if (!delegate) {
+      return [];
+    }
 
     return delegate
       .filter(({ proxyType }) => isSupportedProxy(proxyType))
@@ -188,7 +199,9 @@ export const ProxiesProvider = ({
   // Queries the chain to check if the given delegator & delegate pair is valid proxy. Used when a
   // proxy account is being manually declared.
   const handleDeclareDelegate = async (delegator: string) => {
-    if (!api) return [];
+    if (!api) {
+      return [];
+    }
 
     const result: AnyApi = (await api.query.proxy.proxies(delegator)).toHuman();
 
@@ -204,8 +217,9 @@ export const ProxiesProvider = ({
     }
     if (addDelegatorAsExternal) {
       const importResult = addExternalAccount(delegator, 'system');
-      if (importResult)
+      if (importResult) {
         addOrReplaceOtherAccount(importResult.account, importResult.type);
+      }
     }
 
     return [];
@@ -215,17 +229,16 @@ export const ProxiesProvider = ({
   const getProxyDelegate = (
     delegator: MaybeAddress,
     delegate: MaybeAddress
-  ): ProxyDelegate | null => {
-    return (
-      proxiesRef.current
-        .find((p) => p.delegator === delegator)
-        ?.delegates.find((d) => d.delegate === delegate) ?? null
-    );
-  };
+  ): ProxyDelegate | null =>
+    proxies
+      .find((p) => p.delegator === delegator)
+      ?.delegates.find((d) => d.delegate === delegate) ?? null;
 
   // Subscribe new accounts to proxies, and remove accounts that are no longer imported.
   useEffectIgnoreInitial(() => {
-    if (isReady) handleSyncAccounts();
+    if (isReady) {
+      handleSyncAccounts();
+    }
   }, [accounts, isReady, network]);
 
   // If active proxy has not yet been set, check local storage `activeProxy` & set it as active
@@ -239,7 +252,7 @@ export const ProxiesProvider = ({
     if (!localActiveProxy) {
       setActiveProxy(null);
     } else if (
-      proxiesRef.current.length &&
+      proxies.length &&
       localActiveProxy &&
       !activeProxy &&
       activeAccount
@@ -249,14 +262,14 @@ export const ProxiesProvider = ({
         // Add proxy address as external account if not imported.
         if (!accounts.find((a) => a.address === address)) {
           const importResult = addExternalAccount(address, 'system');
-          if (importResult)
+          if (importResult) {
             addOrReplaceOtherAccount(importResult.account, importResult.type);
+          }
         }
 
         const isActive = (
-          proxiesRef.current.find(
-            ({ delegator }) => delegator === activeAccount
-          )?.delegates || []
+          proxies.find(({ delegator }) => delegator === activeAccount)
+            ?.delegates || []
         ).find((d) => d.delegate === address && d.proxyType === proxyType);
         if (isActive) {
           setActiveProxy({ address, proxyType });
@@ -266,7 +279,7 @@ export const ProxiesProvider = ({
         localStorage.removeItem(`${network}_active_proxy`);
       }
     }
-  }, [accounts, activeAccount, proxiesRef.current, network]);
+  }, [accounts, activeAccount, proxies, network]);
 
   // Reset active proxy state, unsubscribe from subscriptions on network change & unmount.
   useEffectIgnoreInitial(() => {
@@ -276,14 +289,15 @@ export const ProxiesProvider = ({
   }, [network]);
 
   const unsubAll = () => {
-    for (const unsub of Object.values(unsubs.current)) unsub();
+    for (const unsub of Object.values(unsubs.current)) {
+      unsub();
+    }
     unsubs.current = {};
   };
 
   return (
     <ProxiesContext.Provider
       value={{
-        proxies: proxiesRef.current,
         handleDeclareDelegate,
         getDelegates,
         getProxyDelegate,
@@ -295,9 +309,3 @@ export const ProxiesProvider = ({
     </ProxiesContext.Provider>
   );
 };
-
-export const ProxiesContext = React.createContext<ProxiesContextInterface>(
-  defaults.defaultProxiesContext
-);
-
-export const useProxies = () => React.useContext(ProxiesContext);

@@ -3,35 +3,40 @@
 
 import { u8aToString, u8aUnwrapBytes } from '@polkadot/util';
 import { rmCommas, shuffle } from '@polkadot-cloud/utils';
-import React, { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useRef, useState } from 'react';
 import type {
   BondedPool,
   BondedPoolsContextState,
   MaybePool,
   NominationStatuses,
   PoolNominations,
-} from 'contexts/Pools/types';
+} from './types';
 import { useStaking } from 'contexts/Staking';
 import type { AnyApi, MaybeAddress, Sync } from 'types';
 import { useEffectIgnoreInitial } from '@polkadot-cloud/react/hooks';
 import { useNetwork } from 'contexts/Network';
-import { useNetworkMetrics } from 'contexts/NetworkMetrics';
 import type { AnyJson } from '@polkadot-cloud/react/types';
 import { useApi } from '../../Api';
 import { usePoolsConfig } from '../PoolsConfig';
 import { defaultBondedPoolsContext } from './defaults';
 
-export const BondedPoolsProvider = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
+export const BondedPoolsContext = createContext<BondedPoolsContextState>(
+  defaultBondedPoolsContext
+);
+
+export const useBondedPools = () => useContext(BondedPoolsContext);
+
+export const BondedPoolsProvider = ({ children }: { children: ReactNode }) => {
   const { network } = useNetwork();
-  const { api, isReady } = useApi();
-  const { activeEra } = useNetworkMetrics();
-  const { createAccounts, stats } = usePoolsConfig();
+  const {
+    api,
+    isReady,
+    activeEra,
+    poolsConfig: { lastPoolId },
+  } = useApi();
+  const { createAccounts } = usePoolsConfig();
   const { getNominationsStatusFromTargets } = useStaking();
-  const { lastPoolId } = stats;
 
   // Store bonded pools.
   const [bondedPools, setBondedPools] = useState<BondedPool[]>([]);
@@ -51,7 +56,9 @@ export const BondedPoolsProvider = ({
 
   // Fetch all bonded pool entries and their metadata.
   const fetchBondedPools = async () => {
-    if (!api || bondedPoolsSynced.current !== 'unsynced') return;
+    if (!api || bondedPoolsSynced.current !== 'unsynced') {
+      return;
+    }
     bondedPoolsSynced.current = 'syncing';
 
     const ids: number[] = [];
@@ -81,7 +88,9 @@ export const BondedPoolsProvider = ({
 
   // Fetches pool nominations and updates state.
   const fetchPoolsNominations = async () => {
-    if (!api) return;
+    if (!api) {
+      return;
+    }
 
     const ids: number[] = [];
     const nominationsMulti = await api.query.staking.nominators.multi(
@@ -98,7 +107,9 @@ export const BondedPoolsProvider = ({
     Object.fromEntries(
       raw.map((n: AnyJson, i: number) => {
         const human = n.toHuman() as PoolNominations;
-        if (!human) return [ids[i], null];
+        if (!human) {
+          return [ids[i], null];
+        }
         return [
           ids[i],
           {
@@ -111,7 +122,9 @@ export const BondedPoolsProvider = ({
 
   // Queries a bonded pool and injects ID and addresses to a result.
   const queryBondedPool = async (id: number) => {
-    if (!api) return null;
+    if (!api) {
+      return null;
+    }
 
     const bondedPool: AnyApi = (
       await api.query.nominationPools.bondedPools(id)
@@ -132,14 +145,20 @@ export const BondedPoolsProvider = ({
     nominator: MaybeAddress,
     nomination: MaybeAddress
   ) => {
-    const pool = bondedPools.find((p: any) => p.addresses.stash === nominator);
+    const pool = bondedPools.find((p) => p.addresses.stash === nominator);
 
-    if (!pool) return 'waiting';
+    if (!pool) {
+      return 'waiting';
+    }
 
     // get pool targets from nominations metadata
     const nominations = poolsNominations[pool.id];
     const targets = nominations ? nominations.targets : [];
     const target = targets.find((t) => t === nomination);
+
+    if (!target) {
+      return 'waiting';
+    }
 
     const nominationStatus = getNominationsStatusFromTargets(nominator, [
       target,
@@ -183,8 +202,8 @@ export const BondedPoolsProvider = ({
    * poolSearchFilter Iterates through the supplied list and refers to the meta batch of the list to
    * filter those list items that match the search term. Returns the updated filtered list.
    */
-  const poolSearchFilter = (list: any, searchTerm: string) => {
-    const filteredList: any = [];
+  const poolSearchFilter = (list: AnyJson, searchTerm: string) => {
+    const filteredList: AnyJson = [];
 
     for (const pool of list) {
       // If pool metadata has not yet been synced, include the pool in results.
@@ -200,17 +219,23 @@ export const BondedPoolsProvider = ({
         metadataAsBytes === '' ? metadata : metadataAsBytes
       ).toLowerCase();
 
-      if (pool.id.includes(searchTerm.toLowerCase())) filteredList.push(pool);
-      if (address.toLowerCase().includes(searchTerm.toLowerCase()))
+      if (pool.id.includes(searchTerm.toLowerCase())) {
         filteredList.push(pool);
-      if (metadataSearch.includes(searchTerm.toLowerCase()))
+      }
+      if (address.toLowerCase().includes(searchTerm.toLowerCase())) {
         filteredList.push(pool);
+      }
+      if (metadataSearch.includes(searchTerm.toLowerCase())) {
+        filteredList.push(pool);
+      }
     }
     return filteredList;
   };
 
   const updateBondedPools = (updatedPools: BondedPool[]) => {
-    if (!updatedPools) return;
+    if (!updatedPools) {
+      return;
+    }
     setBondedPools(
       bondedPools.map(
         (original) =>
@@ -242,10 +267,14 @@ export const BondedPoolsProvider = ({
   // adds a record to bondedPools.
   // currently only used when a new pool is created.
   const addToBondedPools = (pool: BondedPool) => {
-    if (!pool) return;
+    if (!pool) {
+      return;
+    }
 
     const exists = bondedPools.find((b) => b.id === pool.id);
-    if (!exists) setBondedPools(bondedPools.concat(pool));
+    if (!exists) {
+      setBondedPools(bondedPools.concat(pool));
+    }
   };
 
   // get all the roles belonging to one pool account
@@ -288,11 +317,13 @@ export const BondedPoolsProvider = ({
     // first get the roles of the account
     const roles = getAccountRoles(who);
     // format new list has pool => roles
-    const pools: any = {};
-    Object.entries(roles).forEach(([key, poolIds]: any) => {
+    const pools: Record<number, AnyJson> = {};
+    Object.entries(roles).forEach(([key, poolIds]) => {
       // now looping through a role
-      poolIds.forEach((poolId: string) => {
-        const exists = Object.keys(pools).find((k) => k === poolId);
+      poolIds.forEach((poolId) => {
+        const exists = Object.keys(pools).find(
+          (k) => String(k) === String(poolId)
+        );
         if (!exists) {
           pools[poolId] = [key];
         } else {
@@ -304,7 +335,7 @@ export const BondedPoolsProvider = ({
   };
 
   // determine roles to replace from roleEdits
-  const toReplace = (roleEdits: any) => {
+  const toReplace = (roleEdits: AnyJson) => {
     const root = roleEdits?.root?.newAddress ?? '';
     const nominator = roleEdits?.nominator?.newAddress ?? '';
     const bouncer = roleEdits?.bouncer?.newAddress ?? '';
@@ -317,10 +348,12 @@ export const BondedPoolsProvider = ({
   };
 
   // replaces the pool roles from roleEdits
-  const replacePoolRoles = (poolId: number, roleEdits: any) => {
+  const replacePoolRoles = (poolId: number, roleEdits: AnyJson) => {
     let pool = bondedPools.find((b) => b.id === poolId) || null;
 
-    if (!pool) return;
+    if (!pool) {
+      return;
+    }
 
     pool = {
       ...pool,
@@ -347,7 +380,9 @@ export const BondedPoolsProvider = ({
 
   // Initial setup for fetching bonded pools.
   useEffectIgnoreInitial(() => {
-    if (isReady && lastPoolId) fetchBondedPools();
+    if (isReady && lastPoolId) {
+      fetchBondedPools();
+    }
   }, [bondedPools, isReady, lastPoolId]);
 
   // Re-fetch bonded pools nominations when active era changes or when `bondedPools` update.
@@ -381,9 +416,3 @@ export const BondedPoolsProvider = ({
     </BondedPoolsContext.Provider>
   );
 };
-
-export const BondedPoolsContext = React.createContext<BondedPoolsContextState>(
-  defaultBondedPoolsContext
-);
-
-export const useBondedPools = () => React.useContext(BondedPoolsContext);

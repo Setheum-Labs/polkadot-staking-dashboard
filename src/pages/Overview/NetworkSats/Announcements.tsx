@@ -13,27 +13,23 @@ import BigNumber from 'bignumber.js';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useBondedPools } from 'contexts/Pools/BondedPools';
-import { usePoolsConfig } from 'contexts/Pools/PoolsConfig';
-import type { BondedPool } from 'contexts/Pools/types';
-import { useStaking } from 'contexts/Staking';
-import { useUi } from 'contexts/UI';
 import { Announcement as AnnouncementLoader } from 'library/Loader/Announcement';
 import { useNetwork } from 'contexts/Network';
 import { Item } from './Wrappers';
+import type { BondedPool } from 'contexts/Pools/BondedPools/types';
+import { useApi } from 'contexts/Api';
 
 export const Announcements = () => {
   const { t } = useTranslation('pages');
-  const { isSyncing } = useUi();
-  const { staking } = useStaking();
-  const { stats } = usePoolsConfig();
   const {
     network,
     networkData: { units, unit },
   } = useNetwork();
   const { bondedPools } = useBondedPools();
-
-  const { totalStaked } = staking;
-  const { counterForPoolMembers } = stats;
+  const {
+    poolsConfig: { counterForPoolMembers },
+    stakingMetrics: { totalStaked },
+  } = useApi();
 
   let totalPoolPoints = new BigNumber(0);
   bondedPools.forEach((b: BondedPool) => {
@@ -65,7 +61,7 @@ export const Announcements = () => {
   const networkUnit = unit;
 
   // total staked on the network
-  if (!isSyncing) {
+  if (!totalStaked.isZero()) {
     announcements.push({
       class: 'neutral',
       title: t('overview.networkCurrentlyStaked', {

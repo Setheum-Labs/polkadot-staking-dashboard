@@ -2,19 +2,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import { extractUrlValue, varToUrlHash } from '@polkadot-cloud/utils';
-import React, { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { NetworkList } from 'config/networks';
 import { DefaultNetwork } from 'consts';
 import type { NetworkName } from 'types';
-import type { NetworkState } from 'contexts/Api/types';
-import type { NetworkContextInterface } from './types';
+import type { NetworkState, NetworkContextInterface } from './types';
 import { defaultNetworkContext } from './defaults';
 
-export const NetworkProvider = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
+export const NetworkContext = createContext<NetworkContextInterface>(
+  defaultNetworkContext
+);
+
+export const useNetwork = () => useContext(NetworkContext);
+
+export const NetworkProvider = ({ children }: { children: ReactNode }) => {
   // Get the initial network and prepare meta tags if necessary.
   const getInitialNetwork = () => {
     const urlNetworkRaw = extractUrlValue('n');
@@ -54,6 +56,7 @@ export const NetworkProvider = ({
 
   // Store the initial active network.
   const initialNetwork = getInitialNetwork();
+
   const [network, setNetwork] = useState<NetworkState>({
     name: initialNetwork,
     meta: NetworkList[initialNetwork],
@@ -71,9 +74,3 @@ export const NetworkProvider = ({
     </NetworkContext.Provider>
   );
 };
-
-export const NetworkContext = createContext<NetworkContextInterface>(
-  defaultNetworkContext
-);
-
-export const useNetwork = () => useContext(NetworkContext);

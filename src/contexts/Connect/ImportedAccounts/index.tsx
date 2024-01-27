@@ -2,56 +2,93 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 import type { ReactNode } from 'react';
-import { createContext, useContext } from 'react';
+import { createContext, useCallback, useContext } from 'react';
 import type { MaybeAddress } from 'types';
 import type { ExternalAccount } from '@polkadot-cloud/react/types';
 import { ManualSigners } from 'consts';
-import { useExtensionAccounts } from '@polkadot-cloud/react/hooks';
+import {
+  useEffectIgnoreInitial,
+  useExtensionAccounts,
+} from '@polkadot-cloud/react/hooks';
 import { defaultImportedAccountsContext } from './defaults';
 import type { ImportedAccountsContextInterface } from './types';
 import { useOtherAccounts } from '../OtherAccounts';
+import { BalancesController } from 'static/BalancesController';
+import { useApi } from 'contexts/Api';
 
 export const ImportedAccountsContext =
   createContext<ImportedAccountsContextInterface>(
     defaultImportedAccountsContext
   );
 
+export const useImportedAccounts = () => useContext(ImportedAccountsContext);
+
 export const ImportedAccountsProvider = ({
   children,
 }: {
   children: ReactNode;
 }) => {
+  const { isReady } = useApi();
   const { otherAccounts } = useOtherAccounts();
   const { extensionAccounts } = useExtensionAccounts();
-
   const allAccounts = extensionAccounts.concat(otherAccounts);
 
-  const getAccount = (who: MaybeAddress) =>
-    allAccounts.find(({ address }) => address === who) || null;
+  // Gets an account from `allAccounts`.
+  //
+  // Caches the function when imported accounts update.
+  const getAccount = useCallback(
+    (who: MaybeAddress) =>
+      allAccounts.find(({ address }) => address === who) || null,
+    [allAccounts]
+  );
 
-  const isReadOnlyAccount = (address: MaybeAddress) => {
-    const account = getAccount(address) ?? {};
+  // Checks if an address is a read-only account.
+  //
+  // Caches the function when imported accounts update.
+  const isReadOnlyAccount = useCallback(
+    (who: MaybeAddress) => {
+      const account = allAccounts.find(({ address }) => address === who) || {};
+      if (Object.prototype.hasOwnProperty.call(account, 'addedBy')) {
+        const { addedBy } = account as ExternalAccount;
+        return addedBy === 'user';
+      }
+      return false;
+    },
+    [allAccounts]
+  );
 
-    if (Object.prototype.hasOwnProperty.call(account, 'addedBy')) {
-      const { addedBy } = account as ExternalAccount;
-      return addedBy === 'user';
+  // Checks whether an account can sign transactions.
+  //
+  // Caches the function when imported accounts update.
+  const accountHasSigner = useCallback(
+    (address: MaybeAddress) =>
+      allAccounts.find(
+        (account) =>
+          account.address === address && account.source !== 'external'
+      ) !== undefined,
+    [allAccounts]
+  );
+
+  // Checks whether an account needs manual signing.
+  //
+  // This is the case for accounts imported from hardware wallets, transactions of which cannot be
+  // automatically signed by a provided `signer` as is the case with web extensions.
+  //
+  // Caches the function when imported accounts update.
+  const requiresManualSign = useCallback(
+    (address: MaybeAddress) =>
+      allAccounts.find(
+        (a) => a.address === address && ManualSigners.includes(a.source)
+      ) !== undefined,
+    [allAccounts]
+  );
+
+  // Keep accounts in sync with `BalancesController`.
+  useEffectIgnoreInitial(() => {
+    if (isReady) {
+      BalancesController.syncAccounts(allAccounts.map((a) => a.address));
     }
-    return false;
-  };
-
-  // Checks whether an account can sign transactions
-  const accountHasSigner = (address: MaybeAddress) =>
-    allAccounts.find(
-      (a) => a.address === address && a.source !== 'external'
-    ) !== undefined;
-
-  // Checks whether an account needs manual signing. This is the case for Ledger accounts,
-  // transactions of which cannot be automatically signed by a provided `signer` as is the case with
-  // extensions.
-  const requiresManualSign = (address: MaybeAddress) =>
-    allAccounts.find(
-      (a) => a.address === address && ManualSigners.includes(a.source)
-    ) !== undefined;
+  }, [isReady, allAccounts]);
 
   return (
     <ImportedAccountsContext.Provider
@@ -67,5 +104,3 @@ export const ImportedAccountsProvider = ({
     </ImportedAccountsContext.Provider>
   );
 };
-
-export const useImportedAccounts = () => useContext(ImportedAccountsContext);

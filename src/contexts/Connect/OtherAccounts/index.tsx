@@ -22,9 +22,14 @@ import type { OtherAccountsContextInterface } from './types';
 import { defaultOtherAccountsContext } from './defaults';
 import { getLocalExternalAccounts } from '../ExternalAccounts/Utils';
 import type { ExternalAccountImportType } from '../ExternalAccounts/types';
+import { isCustomEvent } from 'static/utils';
+import { useExternalAccounts } from '../ExternalAccounts';
+import { useEventListener } from 'usehooks-ts';
 
 export const OtherAccountsContext =
   createContext<OtherAccountsContextInterface>(defaultOtherAccountsContext);
+
+export const useOtherAccounts = () => useContext(OtherAccountsContext);
 
 export const OtherAccountsProvider = ({
   children,
@@ -36,6 +41,7 @@ export const OtherAccountsProvider = ({
     networkData: { ss58 },
   } = useNetwork();
   const { checkingInjectedWeb3 } = useExtensions();
+  const { addExternalAccount } = useExternalAccounts();
   const { extensionAccountsSynced } = useExtensionAccounts();
   const { activeAccount, setActiveAccount } = useActiveAccounts();
 
@@ -45,6 +51,8 @@ export const OtherAccountsProvider = ({
 
   // Store other (non-extension) accounts list.
   const [otherAccounts, setOtherAccounts] = useState<ImportedAccount[]>([]);
+  // Ref is needed to refer to updated state in-between renders as local accounts are imported from
+  // different sources.
   const otherAccountsRef = useRef(otherAccounts);
 
   // Store unsubscribe handlers for connected extensions.
@@ -77,8 +85,11 @@ export const OtherAccountsProvider = ({
         otherAccountsRef
       );
       // If the currently active account is being forgotten, disconnect.
-      if (forget.find(({ address }) => address === activeAccount) !== undefined)
+      if (
+        forget.find(({ address }) => address === activeAccount) !== undefined
+      ) {
         setActiveAccount(null);
+      }
     }
   };
 
@@ -107,7 +118,9 @@ export const OtherAccountsProvider = ({
       );
 
       // set active account for networkData.
-      if (activeAccountInSet) setActiveAccount(activeAccountInSet.address);
+      if (activeAccountInSet) {
+        setActiveAccount(activeAccountInSet.address);
+      }
 
       // add accounts to imported.
       addOtherAccounts(localAccounts);
@@ -169,6 +182,24 @@ export const OtherAccountsProvider = ({
     }
   };
 
+  // Handle new external account custom events.
+  const newExternalAccountCallback = (e: Event) => {
+    if (isCustomEvent(e)) {
+      const result = addExternalAccount(e.detail.address, 'system');
+      if (result) {
+        addOrReplaceOtherAccount(result.account, result.type);
+      }
+    }
+  };
+
+  // Listen for new external account events.
+  const documentRef = useRef<Document>(document);
+  useEventListener(
+    'new-external-account',
+    newExternalAccountCallback,
+    documentRef
+  );
+
   // Re-sync other accounts on network switch. Waits for `injectedWeb3` to be injected.
   useEffect(() => {
     if (!checkingInjectedWeb3) {
@@ -217,5 +248,3 @@ export const OtherAccountsProvider = ({
     </OtherAccountsContext.Provider>
   );
 };
-
-export const useOtherAccounts = () => useContext(OtherAccountsContext);
